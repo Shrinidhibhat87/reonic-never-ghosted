@@ -46,3 +46,8 @@ See docs/about-reonic.md for a thorough description of what Reonic is all about,
 ## Preliminary interview
 
 We had an interview with the Reonic founders where they further explained the need for this project. See docs/preliminary-info.md for the details on this.
+
+## Research
+
+The `research` folder contains a massive amount of research information based on Germany-first and based on public web data, official sources, consumer/VOC evidence, and labeled transfer evidence. It does not use assumptions as facts. Don't read it right away, but rather search when necessary to find evidence-based information. While it contains lots of data, there might be gaps in it, but nevertheless it's a good dataset that can later be augmented with further research if deemed necessary by you.
+
