@@ -46,6 +46,64 @@ Each ships independently with a failing-test-first per `IMPLEMENTATION_STANDARDS
 **Spine = P0 → P1 → P2 → P3** — alone a demoable product: generate strategy, see
 reasoning, revise it. **P4 + P5** add the wow + safety. **P6** stretch.
 
+## Implementation status (2026-06-20)
+
+Built on branch `feat/strategy-engine` (isolated git worktree, off `main`). All
+pillars TDD, failing test first. **33 tests passing.** Engine code under `engine/`
+(separate from the backend tab's `backend/`), tests under `tests/`.
+
+| # | Pillar | Status | Modules | Tests |
+|---|--------|--------|---------|-------|
+| P0 | Mock data + golden set | ✅ done | `models.py`, `golden.py`, `knowledge.py`, `data/knowledge.json` | 6 |
+| P1 | Deterministic core | ✅ done | `deterministic.py` | 10 |
+| P2 | Engine A (single agent + tools) | ✅ done | `strategy.py`, `llm.py` | 7 |
+| P3 | Append-only log + revise loop | ✅ done | `log.py` | 3 |
+| P5 | Cost guardrails | ✅ done | `budget.py` | 4 |
+| P4 | Engine B (orchestration, flagged) | ✅ done | `engine_b.py` | 3 |
+| P6 | LLM-judge (A vs B) | ⬜ stretch, not started | — | — |
+
+What the tests pin down (the guarantees):
+
+- benchmark / deal_history chips must carry a deterministically-computed `ref` →
+  the model can reference a stat by id but cannot invent the number.
+- no step's goal exceeds `current_goal` → trust-before-ask ordering holds.
+- every generate / regenerate / revise **appends**; a rejected revision is still
+  recorded and the strategy is left unchanged.
+- budget overrun raises `BudgetExceeded`, partial flow captured — no silent
+  token blowup.
+
+The LLM is **injected** everywhere (a `prompt -> Strategy` callable), so the
+contract and guardrails are tested with stubs. The real provider call
+(`engine/llm.py`, OpenAI structured outputs) is gated on `OPENAI_API_KEY` and the
+`openai` package — it never runs in tests/CI.
+
+## Run it
+
+```bash
+cd reonic-engine
+python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+.venv/bin/python -m pytest -q          # 33 passing
+# live Engine A (needs key + provider):
+.venv/bin/pip install openai
+export OPENAI_API_KEY=...
+# generate_strategy(prospect, llm=openai_llm(), allowed_refs=...)
+```
+
+## Next steps (pick up here)
+
+1. **P6 LLM-judge** — score Engine A vs Engine B on the 6 golden prospects
+   (quality rubric: grounded chips, goal-arc fit, lowest-pressure action). Needs
+   real model calls.
+2. **Wire benchmarks for real** — P1 `compute_benchmark` exists but golden deals
+   have no won/lost outcome pool yet; build `allowed_refs` from actual aggregates
+   so Engine A/B chips resolve against live ids.
+3. **`__main__` demo** — end-to-end run on a golden prospect with a stub LLM (no
+   key) to eyeball Strategy + flow JSON for the frontend.
+4. **API seam** — thin FastAPI endpoints (`POST /strategy`, `POST /strategy/revise`,
+   `GET /strategy/log`) once the frontend contract lands. Deferred per scope.
+5. **Refresh the stale "deferred — wait for frontend" notes** in the sibling plan
+   docs (`data_model.md`, `strategy_contract.md`) — left untouched on purpose.
+
 ## Invariants (trust + cost guarantees, enforced everywhere)
 
 - `benchmark` / `deal_history` chip numbers come from **P1 deterministic**
