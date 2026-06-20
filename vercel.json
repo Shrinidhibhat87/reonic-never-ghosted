@@ -1,5 +1,5 @@
 {
-  "installCommand": "cd reonic-never-ghosted && npm install",
-  "buildCommand": "cd reonic-never-ghosted && npm run build",
-  "outputDirectory": "reonic-never-ghosted/.next"
+  "installCommand": "npm install",
+  "buildCommand": "npm run build",
+  "outputDirectory": ".next"
 }
