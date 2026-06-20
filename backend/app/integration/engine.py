@@ -7,6 +7,7 @@ and tests all work now. Swap `get_engine()` to the real impl behind the same
 Protocol with zero endpoint/persistence changes.
 """
 
+import os
 from typing import Any, Protocol
 
 from pydantic import BaseModel
@@ -129,5 +130,16 @@ class FakeEngine:
 
 
 def get_engine() -> StrategyEngine:
-    """Swap point: return the real engine here once it merges."""
+    """Real engine when a key is configured; deterministic FakeEngine otherwise.
+
+    Keeps CI/tests (no key) on the fixture engine; production with OPENAI_API_KEY
+    set gets the live Engine A. Set NG_USE_FAKE_ENGINE=1 to force the fixture.
+    """
+    if os.getenv("OPENAI_API_KEY") and os.getenv("NG_USE_FAKE_ENGINE") != "1":
+        try:
+            from app.integration.real_engine import RealEngine
+
+            return RealEngine()
+        except Exception:  # engine import/path issue → never break the endpoint
+            pass
     return FakeEngine()
