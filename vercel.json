@@ -1,4 +1,5 @@
 {
-  "rootDirectory": "reonic-never-ghosted",
-  "framework": "nextjs"
+  "installCommand": "cd reonic-never-ghosted && npm install",
+  "buildCommand": "cd reonic-never-ghosted && npm run build",
+  "outputDirectory": "reonic-never-ghosted/.next"
 }
