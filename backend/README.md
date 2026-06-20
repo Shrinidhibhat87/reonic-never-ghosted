@@ -7,8 +7,8 @@ Strategy engine lives separately ([`agent_plan.md`](../docs/implementation_plan/
 ## Dev
 
 ```bash
-uv sync                       # install deps
-docker compose up -d db       # local Postgres
+uv sync                          # install deps
+docker compose -f ../docker-compose.yml up -d db   # local Postgres (root compose)
 uv run uvicorn app.main:app --reload
 uv run pytest                 # tests (live-marked excluded by default)
 uv run ruff check

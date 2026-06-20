@@ -1,0 +1,49 @@
+# Full stack: Postgres + FastAPI backend + Next.js frontend.
+#   docker compose up --build
+# Put OPENAI_API_KEY (and any NG_* overrides) in backend/.env — it's loaded below.
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: ng
+      POSTGRES_PASSWORD: ng
+      POSTGRES_DB: never_ghosted
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ng -d never_ghosted"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  backend:
+    build: ./backend
+    # Loads OPENAI_API_KEY etc. if backend/.env exists; optional so it's not required.
+    env_file:
+      - path: ./backend/.env
+        required: false
+    environment:
+      # Overrides any DATABASE_URL from .env — point at the db service, not localhost.
+      NG_DATABASE_URL: postgresql+psycopg://ng:ng@db:5432/never_ghosted
+      NG_AGENT_MODEL: ${NG_AGENT_MODEL:-openai-responses:gpt-4o}
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        # Baked into the browser bundle, so it must be host-reachable.
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:
