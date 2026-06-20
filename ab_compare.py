@@ -90,21 +90,18 @@ def to_deal_context(prospect):
 
 # ── Runners ──────────────────────────────────────────────────────────────────
 def run_engine(prospect) -> dict:
-    """Engine A: deterministic context + single structured call + hard validation."""
+    """Engine A: deterministic context + structured call + repair loop + guardrails."""
+    from engine.benchmarks import allowed_refs, build_benchmarks
     from engine.llm import openai_llm
-    from engine.strategy import (
-        build_context,
-        validate_strategy,
-        _render_prompt,
-    )
+    from engine.strategy import generate_traced
 
     model = os.getenv("ENGINE_MODEL", "gpt-4o-2024-08-06")
-    context = build_context(prospect, now=NOW)
-    strategy = openai_llm(model)(_render_prompt(prospect, context))
+    strategy, violations = generate_traced(
+        prospect, llm=openai_llm(model), allowed_refs=allowed_refs(),
+        benchmarks=build_benchmarks(), now=NOW, max_repairs=1)
     out = strategy.model_dump(mode="json")
-    # Surface the guardrail result alongside the plan (allowed_refs empty until a
-    # benchmark pool exists) — it's a feature the basic agent lacks, not a crash.
-    out["guardrail_violations"] = validate_strategy(strategy, allowed_refs=set())
+    # Surface the guardrail result — a feature the basic agent lacks, not a crash.
+    out["guardrail_violations"] = violations
     return out
 
 

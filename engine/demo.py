@@ -16,6 +16,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
+from engine.benchmarks import allowed_refs, build_benchmarks
 from engine.deterministic import Goal
 from engine.golden import load_golden_prospects
 from engine.strategy import (
@@ -28,9 +29,7 @@ from engine.strategy import (
     Step,
     Strategy,
     TaskType,
-    build_context,
-    validate_strategy,
-    _render_prompt,
+    generate_traced,
 )
 
 NOW = datetime(2026, 6, 20, 12, 0, 0)
@@ -119,14 +118,13 @@ def main(argv: list[str]) -> None:
     from engine.llm import openai_llm
 
     model = os.getenv("ENGINE_MODEL", "gpt-4o-2024-08-06")
-    # Run the pieces directly (not generate_strategy) so we always SEE the output
-    # and report guardrail violations as warnings rather than swallowing it.
-    # allowed_refs is empty until a won/lost benchmark pool exists, so any
-    # benchmark/deal_history chip the model invents will (correctly) flag here.
-    context = build_context(prospect, now=NOW)
-    strategy = openai_llm(model)(_render_prompt(prospect, context))
+    # Traced path: benchmark ids ground the chips, one repair retry fixes most
+    # breaches, and we still print any residual violations as warnings.
+    bm = build_benchmarks()
+    strategy, violations = generate_traced(
+        prospect, llm=openai_llm(model), allowed_refs=allowed_refs(),
+        benchmarks=bm, now=NOW, max_repairs=1)
     _print(strategy)
-    violations = validate_strategy(strategy, allowed_refs=set())
     if violations:
         print("⚠ guardrail flags (ungrounded — would be rejected in prod):")
         for v in violations:

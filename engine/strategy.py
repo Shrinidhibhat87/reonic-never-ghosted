@@ -154,31 +154,108 @@ def build_context(prospect: GoldenProspect, *, now) -> dict:
     }
 
 
-def generate_strategy(
-    prospect: GoldenProspect, *, llm: LLM, allowed_refs: set[str], now=None,
-) -> Strategy:
-    """Engine A: build context, call the LLM, hard-validate before returning."""
+def generate_traced(
+    prospect: GoldenProspect, *, llm: LLM, allowed_refs: set[str],
+    benchmarks: dict | None = None, now=None, max_repairs: int = 1,
+) -> tuple[Strategy, list[str]]:
+    """Run Engine A with a bounded repair loop; return (strategy, violations).
+
+    Best-effort: never raises on invariant breach — the caller decides. After a
+    violating draft, re-prompt once (up to ``max_repairs``) with the violation
+    list before giving up. Lets demos surface output while staying honest about
+    what failed validation.
+    """
     from datetime import datetime
 
     now = now or datetime(2026, 6, 20, 12, 0, 0)
     context = build_context(prospect, now=now)
-    prompt = _render_prompt(prospect, context)
+    prompt = _render_prompt(prospect, context, benchmarks or {})
     strategy = llm(prompt)
     violations = validate_strategy(strategy, allowed_refs=allowed_refs)
+    repairs = 0
+    while violations and repairs < max_repairs:
+        repairs += 1
+        strategy = llm(_repair_prompt(prompt, violations))
+        violations = validate_strategy(strategy, allowed_refs=allowed_refs)
+    return strategy, violations
+
+
+def generate_strategy(
+    prospect: GoldenProspect, *, llm: LLM, allowed_refs: set[str],
+    benchmarks: dict | None = None, now=None, max_repairs: int = 1,
+) -> Strategy:
+    """Engine A: generate (with repair), hard-validate, raise if still in breach."""
+    strategy, violations = generate_traced(
+        prospect, llm=llm, allowed_refs=allowed_refs,
+        benchmarks=benchmarks, now=now, max_repairs=max_repairs)
     if violations:
         raise StrategyInvariantError("; ".join(violations))
     return strategy
 
 
-def _render_prompt(prospect: GoldenProspect, context: dict) -> str:
-    """Assemble the single-call prompt. Kept plain; the schema does the shaping."""
+def _repair_prompt(original: str, violations: list[str]) -> str:
+    """Append the failed checks and ask for a corrected draft."""
     return (
-        "You are a sales-process coach for a German renewable-energy installer.\n"
-        "Diagnose why this quoted customer hasn't signed and propose up to 3 "
-        "low-pressure next tasks that ladder toward the current goal.\n"
-        "Only reference a benchmark/deal_history number by the ids provided; "
-        "never invent statistics.\n\n"
-        f"Customer: {prospect.customer.model_dump(mode='json')}\n"
-        f"Quote: {prospect.quote.model_dump(mode='json')}\n"
-        f"Deterministic context: {context}\n"
+        original
+        + "\n\nYOUR PREVIOUS DRAFT FAILED THESE CHECKS:\n"
+        + "\n".join(f"- {v}" for v in violations)
+        + "\n\nReturn a corrected strategy that fixes every failure. Cite "
+        "benchmark/deal_history chips ONLY by the allowed ids above, and keep "
+        "every step's goal at or below the current goal."
     )
+
+
+def _render_prompt(prospect: GoldenProspect, context: dict, benchmarks: dict) -> str:
+    """Structured single-call prompt: grounded facts + explicit output demands."""
+    c, q = prospect.customer, prospect.quote
+    products = ", ".join(f"{p.type.value} ({p.spec})" for p in q.products)
+    competitor = (
+        f"{prospect.competitor.competitor_name} at €{prospect.competitor.competitor_price:.0f}"
+        if prospect.competitor else "none flagged"
+    )
+    notes = "\n".join(f"  - {n.content}" for n in prospect.notes) or "  - none"
+    if benchmarks:
+        bench_lines = "\n".join(
+            f"  - id={ref}: {b.metric}, win-lift "
+            f"{('%.2fx' % b.lift) if b.lift is not None else 'n/a'} (n={b.sample_size})"
+            for ref, b in benchmarks.items()
+        )
+    else:
+        bench_lines = "  - none available"
+
+    return f"""\
+You are a sales-process coach for a German renewable-energy installer. A quoted
+homeowner went quiet. Diagnose why and propose the next moves to re-engage them.
+
+CUSTOMER
+  name: {c.name} | region: {c.region} | channels: {[ch.value for ch in c.contact_channels]}
+  energy bill: {c.current_energy_bill} | distance to installer: {c.distance_to_installer_km} km
+
+QUOTE
+  products: {products}
+  price: €{q.total_price:.0f} | savings/yr: {q.est_savings_per_year} | payback: {q.payback_years} yrs
+  roi: {q.roi_pct} | CO2 offset: {q.co2_offset_tons} t
+  competitor: {competitor}
+
+DETERMINISTIC SIGNALS (already computed — do not recompute or contradict)
+  temperature: {context['temperature']} | ghost_risk: {context['ghost_risk']} | stage: {context['stage']}
+
+INSTALLER NOTES
+{notes}
+
+BENCHMARKS YOU MAY CITE (use the id in a benchmark/deal_history chip; never invent numbers)
+{bench_lines}
+
+PRODUCE
+  1. buyer_profile: weighted persona vector (weights ~sum to 1), top motivations,
+     and the objections you infer from the notes/signals.
+  2. current_goal: the furthest goal it's safe to pursue now (trust -> value ->
+     urgency -> close -> ask). Earn trust before urgency; ask for commitment last.
+  3. up to 3 steps laddering toward current_goal, lowest-pressure first. Each step:
+     - pick the right channel/action (call, email, meeting, whatsapp_video, gift)
+     - a primary lever (+ optional secondary)
+     - READY-TO-SEND content in `script`: emails get a full subject + body, calls
+       get concrete talking points. No placeholders.
+     - evidence_chips grounded in the facts above; benchmark/deal_history chips
+       MUST use an allowed id.
+"""

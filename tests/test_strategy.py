@@ -98,3 +98,29 @@ def test_generate_strategy_raises_on_invariant_breach():
     prospect = load_golden_prospects()[0]
     with pytest.raises(StrategyInvariantError):
         generate_strategy(prospect, llm=lambda prompt: bad, allowed_refs=ALLOWED_REFS)
+
+
+def test_repair_loop_recovers_from_one_bad_draft():
+    # #3: first draft violates, repaired draft is clean → returned, no raise.
+    bad = _strategy([_step(Goal.create_urgency,
+                           [_chip(ChipKind.benchmark, "x", "made_up_ref")])])
+    good = _strategy([_step(Goal.create_urgency,
+                           [_chip(ChipKind.benchmark, "call <24h", "call_within_24h")])])
+    drafts = iter([bad, good])
+    prospect = load_golden_prospects()[0]
+    out = generate_strategy(prospect, llm=lambda prompt: next(drafts),
+                            allowed_refs=ALLOWED_REFS, max_repairs=1)
+    assert out.steps[0].evidence_chips[0].ref == "call_within_24h"
+
+
+def test_render_prompt_lists_benchmark_ids_and_demands_drafts():
+    # #2: prompt names the citable ids and asks for ready-to-send content.
+    from engine.benchmarks import build_benchmarks
+    from engine.strategy import _render_prompt, build_context
+
+    prospect = load_golden_prospects()[0]
+    ctx = build_context(prospect, now=__import__("datetime").datetime(2026, 6, 20))
+    prompt = _render_prompt(prospect, ctx, build_benchmarks())
+    assert "call_within_24h" in prompt           # citable id is offered
+    assert "ready-to-send" in prompt.lower()     # demands full drafts
+    assert "never invent" in prompt.lower()      # grounding instruction
