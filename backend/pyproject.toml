@@ -9,6 +9,8 @@ dependencies = [
     "sqlmodel>=0.0.22",
     "psycopg[binary]>=3.2",
     "pydantic-settings>=2.6",
+    "pydantic-ai>=1.107",
+    "logfire[fastapi,system-metrics]>=4.37.0",
 ]
 
 [dependency-groups]

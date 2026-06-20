@@ -2,12 +2,18 @@
 
 from contextlib import asynccontextmanager
 
+import logfire
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 import app.models  # noqa: F401 — register tables before create_all
 from app.db import create_all
 from app.routers import admin, deals, leads, orgs, strategy
+
+# No-op until a Logfire token is present (`uv run logfire auth`), so tests/CI are
+# unaffected; traces API requests + agent runs once authenticated.
+logfire.configure(send_to_logfire="if-token-present", service_name="ng-backend")
+logfire.instrument_pydantic_ai()
 
 
 @asynccontextmanager
@@ -17,6 +23,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Never Ghosted", lifespan=lifespan)
+logfire.instrument_fastapi(app)
 
 # ponytail: wide-open CORS for local dev; lock to the frontend origin before prod.
 app.add_middleware(
