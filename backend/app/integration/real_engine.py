@@ -109,10 +109,11 @@ def _to_result(strategy) -> StrategyResult:
     bp = strategy.buyer_profile
     steps = []
     for i, s in enumerate(strategy.steps, start=1):
-        rationale = f"{s.title} — {s.why}\n\n{s.script}".strip()
+        rationale = f"{s.why}\n\n{s.script}".strip()
         steps.append(Step(
             order=i, goal=Goal(s.goal.value), lever=PersuasionLever(s.primary_lever.value),
             channel=_CHANNEL.get(s.task_type.value, s.task_type.value), rationale=rationale,
+            title=s.title, timing=s.suggested_timing,
             evidence_chips=[EvidenceChip(kind=c.kind.value, text=c.label, ref=c.ref)
                             for c in s.evidence_chips],
         ))
@@ -120,7 +121,8 @@ def _to_result(strategy) -> StrategyResult:
         current_goal=Goal(strategy.current_goal.value),
         buyer_profile={"summary": strategy.summary, **bp.model_dump(mode="json")},
         persona_scores=[PersonaScore(persona=p.persona.value, weight=p.weight,
-                                     strength=p.strength) for p in bp.personas],
+                                     strength=p.strength, evidence_refs=p.evidence_refs)
+                        for p in bp.personas],
         top_motivations=bp.top_motivations,
         objections=[o.value for o in bp.objections],
         steps=steps,

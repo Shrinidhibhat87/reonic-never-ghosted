@@ -42,6 +42,7 @@ class PersonaScore(BaseModel):
     persona: str
     weight: float
     strength: str
+    evidence_refs: list[str] = []  # why this persona scored — the FE "why" panel
 
 
 class Step(BaseModel):
@@ -50,6 +51,8 @@ class Step(BaseModel):
     lever: PersuasionLever
     channel: str
     rationale: str
+    title: str | None = None  # short step headline for the timeline
+    timing: str | None = None  # suggested timing label (e.g. "Day 1")
     evidence_chips: list[EvidenceChip] = []
 
 
@@ -100,7 +103,9 @@ class FakeEngine:
                 order=1,
                 goal=Goal.build_trust,
                 lever=PersuasionLever.proximity_trust,
-                channel="email",
+                channel="call",
+                title="Re-open with a local check-in call",
+                timing="Day 1",
                 rationale="Open with local credibility before any ask.",
                 evidence_chips=chips,
             ),
@@ -109,6 +114,8 @@ class FakeEngine:
                 goal=Goal.establish_value,
                 lever=lever,
                 channel="email",
+                title="Send a value recap matched to the system",
+                timing="Day 3",
                 rationale="Frame the value matched to the product and persona.",
                 evidence_chips=chips,
             ),
@@ -116,7 +123,20 @@ class FakeEngine:
         return StrategyResult(
             current_goal=ctx.deal.current_goal,
             buyer_profile={"summary": "fixture buyer profile (fake engine)"},
-            persona_scores=[PersonaScore(persona="roi_investor", weight=0.6, strength="moderate")],
+            persona_scores=[
+                PersonaScore(
+                    persona="roi_investor",
+                    weight=0.6,
+                    strength="moderate",
+                    evidence_refs=[f"opened the quote {opens}x", f"{won} comparable deals won by this org"],
+                ),
+                PersonaScore(
+                    persona="budget_sensitive",
+                    weight=0.4,
+                    strength="weak",
+                    evidence_refs=["asked about monthly payment in a prior touch"],
+                ),
+            ],
             top_motivations=["save money", "energy independence"],
             objections=["upfront_cost"],
             steps=steps,
