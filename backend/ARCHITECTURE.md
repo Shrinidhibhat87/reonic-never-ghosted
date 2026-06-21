@@ -8,23 +8,23 @@ FastAPI directly (CORS open for dev). Data is populated once via `POST /admin/se
 ```mermaid
 flowchart LR
   seed["POST /admin/seed<br/>(data/generator.py, RNG seed=42)"]
-  pg[("Postgres :5433<br/>tables = models/entities.py")]
+  pg[("Postgres :5434<br/>tables = models/entities.py")]
   repo["repositories/queries.py<br/>(read-only SQL)"]
   fake["integration/engine.py<br/>FakeEngine (strategy/persona)"]
   routers["routers/*.py<br/>FastAPI + Pydantic response models"]
-  fe["Frontend<br/>browser fetch → :3000"]
+  fe["Frontend<br/>browser fetch → :3001"]
 
   seed -->|writes rows| pg
   pg --> repo --> routers
   fake -->|generate/draft/revise| routers
-  routers -->|JSON over HTTP :8000| fe
+  routers -->|JSON over HTTP :8001| fe
 ```
 
 ## Endpoints the frontend consumes
 
 ```mermaid
 flowchart TD
-  subgraph API["FastAPI :8000"]
+  subgraph API["FastAPI :8001"]
     L["GET /installers/{id}/leads"]
     D["GET /deals/{id}"]
     S["POST /deals/{id}/strategy"]

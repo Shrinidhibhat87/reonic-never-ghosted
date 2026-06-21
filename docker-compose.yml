@@ -9,7 +9,7 @@ services:
       POSTGRES_PASSWORD: ng
       POSTGRES_DB: never_ghosted
     ports:
-      - "5433:5432"
+      - "${POSTGRES_PORT:-5434}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -29,7 +29,7 @@ services:
       NG_DATABASE_URL: postgresql+psycopg://ng:ng@db:5432/never_ghosted
       NG_AGENT_MODEL: ${NG_AGENT_MODEL:-openai-responses:gpt-4o}
     ports:
-      - "8000:8000"
+      - "${API_PORT:-8001}:8000"
     depends_on:
       db:
         condition: service_healthy
@@ -39,9 +39,9 @@ services:
       context: ./frontend
       args:
         # Baked into the browser bundle, so it must be host-reachable.
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8001}
     ports:
-      - "3000:3000"
+      - "${FRONTEND_PORT:-3001}:3000"
     depends_on:
       - backend
 
