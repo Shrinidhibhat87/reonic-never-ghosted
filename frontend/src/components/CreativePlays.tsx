@@ -62,6 +62,9 @@ export function CreativePlays() {
           Out-of-the-box moves the agent can pick when the obvious email won’t land — gifts, vouchers, tactile mail.
         </span>
       )}
+      <span className="text-caption font-caption text-subtext-color italic">
+        Preview library — the agent doesn’t fold these into the generated play yet (planned: §3.5 plays → S5 prompt).
+      </span>
       {open && (
         <div className="flex w-full flex-col items-start gap-2 border-t border-solid border-brand-200 pt-4">
           {PLAYS.map((p) => (

@@ -156,6 +156,8 @@ export default function StrategyPage() {
             <>
               <QuickActions />
 
+              <CreativePlays />
+
               {/* Buyer profile + personas */}
               <div className="flex w-full flex-col items-start gap-4 rounded-lg border border-solid border-neutral-border bg-default-background px-6 py-5 shadow-sm">
                 <div className="flex w-full items-center gap-2">
@@ -387,8 +389,6 @@ export default function StrategyPage() {
                   </span>
                 </div>
               </div>
-
-              <CreativePlays />
             </>
           )}
         </div>
