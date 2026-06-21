@@ -1,0 +1,17 @@
+node_modules
+agent/node_modules
+frontend/node_modules
+reonic-never-ghosted/node_modules
+dist
+.data
+.voltagent
+.venv
+.vercel
+.git
+coverage
+playwright-report
+test-results
+.tmp-ui
+*.png
+.env
+.env.local
