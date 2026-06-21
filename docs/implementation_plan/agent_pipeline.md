@@ -142,6 +142,14 @@ Plays stay subject to the same goal-arc + budget invariants (§5).
 > prompt-writing. Plays are additive data — they need **no** new pillar, just a
 > JSON file + three lines in the S5 prompt.
 
+**Status (FE ahead of engine):** the frontend already ships a "Think outside the
+box" play library on the strategy page (`CreativePlays.tsx`), but it is a static
+preview — the engine does **not** yet read these plays when it generates The
+play. **TODO:** feed the seed play set into the S5 prompt (as `allowed_refs`-style
+constrained data) so the agent selects + justifies a play in a step's `why`, and
+surface the selected play on the matching step in the FE. Until then the library
+is illustrative only.
+
 ---
 
 ## 3.6 Voice intake + calendar write-back (stretch, top-up)
