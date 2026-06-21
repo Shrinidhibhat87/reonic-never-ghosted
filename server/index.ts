@@ -19,6 +19,7 @@ import {
   resetDatabase,
   reviseStrategy,
   scheduleAction,
+  updateActionPreparation,
   updateCustomer,
 } from "./db.js";
 
@@ -82,6 +83,10 @@ app.post("/api/quotes/:id/revise-strategy/stream", async (req, res) => {
 
 app.post("/api/actions/:id/schedule", (req, res) => {
   res.json(scheduleAction(req.params.id, req.body));
+});
+
+app.patch("/api/actions/:id/preparation", (req, res) => {
+  res.json(updateActionPreparation(req.params.id, req.body));
 });
 
 app.post("/api/actions/:id/log", async (req, res) => {

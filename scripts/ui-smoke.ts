@@ -93,9 +93,21 @@ try {
   await page.waitForURL(/\/requests\/quote_sabine\/strategy/);
   await requireText(page, "Send Email");
   await requireText(page, "GPT-5 mini");
+  await page
+    .locator(".prep-editor textarea")
+    .first()
+    .fill("Subject: Final recap\n\nSmoke-test final recap draft with the visit reassurance included.");
   await page.screenshot({ path: ".tmp-ui/strategy-final-recap.png", fullPage: true });
 
-  await clickAndWait(page, /Send recap/i, "/api/actions/", "/complete");
+  await clickAndWait(page, /Schedule email/i, "/api/actions/", "/schedule");
+  await page.waitForURL(/\/calendar\?quote=quote_sabine/);
+  await requireHighlightedEvent(page);
+  await page.screenshot({ path: ".tmp-ui/calendar-email.png", fullPage: true });
+
+  await page.goto(`${baseUrl}/requests/quote_sabine/strategy`, { waitUntil: "networkidle" });
+  await requireText(page, "Scheduled time");
+  await requireTextareaValue(page, "Smoke-test final recap draft");
+  await clickAndWait(page, /Mark sent/i, "/api/actions/", "/complete");
   await page.waitForURL(/\/quotes/);
   await requireText(page, "Signed");
   await page.screenshot({ path: ".tmp-ui/final-signed.png", fullPage: true });
@@ -109,6 +121,7 @@ try {
           ".tmp-ui/calendar-call.png",
           ".tmp-ui/strategy-visit.png",
           ".tmp-ui/strategy-final-recap.png",
+          ".tmp-ui/calendar-email.png",
           ".tmp-ui/final-signed.png",
         ],
       },
@@ -149,4 +162,11 @@ async function ensureNoText(page: Page, text: string) {
 
 async function requireHighlightedEvent(page: Page) {
   await page.locator(".calendar-event.highlighted").first().waitFor({ state: "visible", timeout });
+}
+
+async function requireTextareaValue(page: Page, text: string) {
+  const value = await page.locator(".prep-editor textarea").first().inputValue({ timeout });
+  if (!value.includes(text)) {
+    throw new Error(`Expected persisted preparation text to include "${text}", got "${value}".`);
+  }
 }

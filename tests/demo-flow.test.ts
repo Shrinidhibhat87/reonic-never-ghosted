@@ -70,6 +70,32 @@ describe("demo flow persistence", () => {
     expect(signed.quote.statusLabel).toBe("Signed");
   });
 
+  it("schedules a final email action with its editable draft before sending", async () => {
+    const generated = await db.generateStrategy(seed.DEMO_QUOTE_ID);
+    const callScheduled = db.scheduleAction(generated.quote.nextAction.actionId!, {});
+    const visitRecommended = await db.logAction(callScheduled.quote.nextAction.actionId!, {
+      notes:
+        "Customer said the price may be okay, but they want someone to come look at the house, roof, and cable path before they trust the final quote.",
+    });
+    const visitScheduled = db.scheduleAction(visitRecommended.quote.nextAction.actionId!, {});
+    const finalRecommended = await db.logAction(visitScheduled.quote.nextAction.actionId!, {
+      notes:
+        "Visit completed. Roof condition looked fine. This answers Sabine's main concern and she asked for final summary and signature path.",
+    });
+    const actionId = finalRecommended.quote.nextAction.actionId!;
+    const scheduled = db.scheduleAction(actionId, {
+      preparationBody: "Subject: Final recap\n\nCustom final email draft.",
+    });
+
+    const action = scheduled.actions.find((item) => item.id === actionId);
+    const events = db.getCalendarEvents();
+
+    expect(action?.status).toBe("scheduled");
+    expect(action?.preparationBody).toContain("Custom final email draft");
+    expect(scheduled.quote.nextAction.kind).toBe("send_final_recap");
+    expect(events.some((event) => event.actionId === actionId && event.title.includes("Send email"))).toBe(true);
+  });
+
   it("marks an existing strategy stale after master data edits", async () => {
     await db.generateStrategy(seed.DEMO_QUOTE_ID);
     db.updateCustomer(seed.DEMO_CUSTOMER_ID, { quoteValue: 39200 });

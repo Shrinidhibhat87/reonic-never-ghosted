@@ -3,7 +3,9 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 
 import { api, formatMoney } from "../lib/api.js";
+import { getQuoteLikelihood } from "../lib/quoteLikelihood.js";
 import type { ActionRecord, AgentTraceEvent, QuoteDetailPayload, StrategyStep } from "../../server/types.js";
+import { LikelihoodPill } from "./LikelihoodPill.js";
 import { LogActionDialog } from "./LogActionDialog.js";
 import { AppIcon, Avatar, Badge, EmptyPanel, ErrorState, LoadingState, PageHeader } from "./ui.js";
 
@@ -120,7 +122,7 @@ export function StrategyPage() {
     }
   }
 
-  async function schedule() {
+  async function schedule(preparationBody?: string) {
     if (!activeAction) {
       return;
     }
@@ -128,13 +130,20 @@ export function StrategyPage() {
     try {
       const updated = await api.scheduleAction(
         activeAction.id,
-        activeStep?.suggestedDateTime ? { slotStart: activeStep.suggestedDateTime } : {},
+        {
+          ...(activeStep?.suggestedDateTime ? { slotStart: activeStep.suggestedDateTime } : {}),
+          ...(preparationBody ? { preparationBody } : {}),
+        },
       );
       setDetail(updated);
       navigate(`/calendar?quote=${updated.quote.id}`);
     } finally {
       setActionOperation(null);
     }
+  }
+
+  async function savePreparation(actionId: string, body: string) {
+    setDetail(await api.updateActionPreparation(actionId, { body }));
   }
 
   async function complete() {
@@ -223,10 +232,12 @@ export function StrategyPage() {
                       ? actionOperation.type
                       : undefined
                   }
+                  action={activeAction}
                   strategyBusy={Boolean(strategyOperation)}
-                  onSchedule={() => void schedule()}
+                  onSchedule={(preparationBody) => void schedule(preparationBody)}
                   onComplete={() => void complete()}
                   onLog={openLog}
+                  onSavePreparation={(actionId, body) => void savePreparation(actionId, body)}
                   nextKind={detail.quote.nextAction.kind}
                 />
               ))}
@@ -355,6 +366,7 @@ function traceStatusLabel(status: AgentTraceEvent["status"]) {
 }
 
 function CustomerProfileCard({ detail }: { detail: QuoteDetailPayload }) {
+  const likelihood = getQuoteLikelihood(detail.quote);
   return (
     <section className="customer-profile-card">
       <div className="profile-header">
@@ -365,6 +377,7 @@ function CustomerProfileCard({ detail }: { detail: QuoteDetailPayload }) {
             {detail.customer.leadBadge ? (
               <Badge tone={detail.customer.leadBadgeTone ?? "yellow"}>{detail.customer.leadBadge}</Badge>
             ) : null}
+            <LikelihoodPill likelihood={likelihood} />
           </div>
           <p>
             {detail.customer.address} · {formatMoney(detail.quote.value)} · {detail.customer.system}
@@ -409,34 +422,51 @@ function CustomerProfileCard({ detail }: { detail: QuoteDetailPayload }) {
 function StrategyStepView({
   step,
   active,
+  action,
   actionBusy,
   strategyBusy,
   nextKind,
   onSchedule,
   onComplete,
+  onLog,
+  onSavePreparation,
 }: {
   step: StrategyStep;
   active: boolean;
+  action: ActionRecord | undefined;
   actionBusy: "schedule" | "complete" | undefined;
   strategyBusy: boolean;
   nextKind: string;
-  onSchedule: () => void;
+  onSchedule: (preparationBody?: string) => void;
   onComplete: () => void;
   onLog: () => void;
+  onSavePreparation: (actionId: string, body: string) => void;
 }) {
   const [expanded, setExpanded] = useState(active);
+  const [preparationBody, setPreparationBody] = useState(
+    action?.preparationBody ?? step.bullets.map((bullet, index) => `${index + 1}. ${bullet}`).join("\n"),
+  );
 
   useEffect(() => {
     setExpanded(active);
   }, [active]);
 
-  const canSchedule = active && (nextKind === "schedule_call" || nextKind === "schedule_visit");
-  const canSend =
-    active &&
-    (nextKind === "send_final_recap" ||
-      nextKind === "follow_up_signature" ||
-      nextKind === "send_whatsapp_video" ||
-      nextKind === "send_gift");
+  useEffect(() => {
+    setPreparationBody(
+      action?.preparationBody ?? step.bullets.map((bullet, index) => `${index + 1}. ${bullet}`).join("\n"),
+    );
+  }, [action?.id, action?.preparationBody, step.bullets]);
+
+  const isScheduled = active && action?.status === "scheduled";
+  const canSchedule = active && Boolean(action) && action?.status !== "scheduled" && nextKind !== "none";
+  const canCompleteScheduled =
+    isScheduled &&
+    (step.taskType === "Send Email" ||
+      step.taskType === "Send WhatsApp Video Message" ||
+      step.taskType === "Send Gift");
+  const canLogScheduled =
+    isScheduled && (step.taskType === "Phone Call" || step.taskType === "Meeting in person");
+  const displayedDateTime = action?.scheduledFor ?? step.suggestedDateTime;
 
   return (
     <article className={`strategy-step ${active ? "active" : ""} ${step.status}`}>
@@ -469,6 +499,29 @@ function StrategyStepView({
                 ))}
               </ul>
             </div>
+            {active && action ? (
+              <div className="prep-editor">
+                <div className="prep-editor-heading">
+                  <strong>{action.preparationTitle ?? step.guideTitle}</strong>
+                  {action.preparationUpdatedAt ? <span>Saved</span> : null}
+                </div>
+                <textarea
+                  rows={step.taskType === "Send Email" ? 8 : 6}
+                  value={preparationBody}
+                  onChange={(event) => setPreparationBody(event.target.value)}
+                />
+                <div className="prep-editor-actions">
+                  <button
+                    className="secondary-button"
+                    type="button"
+                    onClick={() => onSavePreparation(action.id, preparationBody)}
+                    disabled={strategyBusy || Boolean(actionBusy)}
+                  >
+                    {step.secondaryCta}
+                  </button>
+                </div>
+              </div>
+            ) : null}
             <div className="why-box">
               <span>
                 <Info size={14} />
@@ -490,13 +543,13 @@ function StrategyStepView({
                   <Clock3 size={18} />
                 </span>
                 <div>
-                  <strong>Suggested time</strong>
-                  <span>{step.suggestedTime}</span>
+                  <strong>{isScheduled ? "Scheduled time" : "Suggested time"}</strong>
+                  <span>{formatStepDate(displayedDateTime)}</span>
                   <small>
                     {new Intl.DateTimeFormat("en", {
                       hour: "numeric",
                       minute: "2-digit",
-                    }).format(new Date(step.suggestedDateTime))}
+                    }).format(new Date(displayedDateTime))}
                   </small>
                 </div>
                 <div className="time-actions">
@@ -504,14 +557,14 @@ function StrategyStepView({
                     <button
                       className="primary-button"
                       type="button"
-                      onClick={onSchedule}
+                      onClick={() => onSchedule(preparationBody)}
                       disabled={strategyBusy || Boolean(actionBusy)}
                     >
-                      <AppIcon name={step.taskType === "Meeting in person" ? "calendar" : "phone"} size={15} />
-                      {actionBusy === "schedule" ? "Scheduling..." : step.secondaryCta}
+                      <AppIcon name="calendar" size={15} />
+                      {actionBusy === "schedule" ? "Scheduling..." : step.primaryCta}
                     </button>
                   ) : null}
-                  {canSend ? (
+                  {canCompleteScheduled ? (
                     <button
                       className="primary-button"
                       type="button"
@@ -519,12 +572,14 @@ function StrategyStepView({
                       disabled={strategyBusy || Boolean(actionBusy)}
                     >
                       <AppIcon name="send" size={15} />
-                      {actionBusy === "complete" ? "Sending..." : step.primaryCta}
+                      {actionBusy === "complete" ? "Sending..." : markDoneLabel(step.taskType)}
                     </button>
                   ) : null}
-                  <button className="secondary-button" type="button">
-                    {step.taskType === "Send Email" ? "Draft email" : step.primaryCta}
-                  </button>
+                  {canLogScheduled ? (
+                    <button className="secondary-button" type="button" onClick={onLog}>
+                      Log outcome
+                    </button>
+                  ) : null}
                 </div>
               </div>
             ) : null}
@@ -533,4 +588,22 @@ function StrategyStepView({
       </div>
     </article>
   );
+}
+
+function formatStepDate(iso: string) {
+  return new Intl.DateTimeFormat("en", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  }).format(new Date(iso));
+}
+
+function markDoneLabel(taskType: ActionRecord["taskType"]) {
+  if (taskType === "Send Gift") {
+    return "Mark gift sent";
+  }
+  if (taskType === "Send WhatsApp Video Message") {
+    return "Mark video sent";
+  }
+  return "Mark sent";
 }

@@ -413,6 +413,67 @@ a {
   border-bottom: 1px solid var(--line);
 }
 
+.likelihood-control {
+  width: fit-content;
+  max-width: 100%;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.likelihood-pill {
+  width: fit-content;
+  max-width: 100%;
+  min-height: 26px;
+  border-radius: 5px;
+  padding: 0 9px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  font-weight: 750;
+  white-space: nowrap;
+}
+
+.likelihood-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  flex: 0 0 auto;
+}
+
+.likelihood-blue {
+  color: #1d4ed8;
+  background: #eaf2ff;
+}
+
+.likelihood-green {
+  color: #047857;
+  background: #d1fae5;
+}
+
+.likelihood-yellow {
+  color: #8a5a00;
+  background: #fef3c7;
+}
+
+.likelihood-red {
+  color: #b91c1c;
+  background: #fee2e2;
+}
+
+.likelihood-info {
+  width: 22px;
+  height: 22px;
+  color: #6b7280;
+}
+
+.likelihood-info:hover {
+  color: #111827;
+  background: #f3f4f6;
+}
+
 .quote-footer {
   min-width: 0;
   height: 46px;
@@ -1064,6 +1125,47 @@ a {
   color: var(--blue);
 }
 
+.prep-editor {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fcfcfd;
+  padding: 14px;
+  margin: 0 0 16px;
+}
+
+.prep-editor-heading,
+.prep-editor-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.prep-editor-heading {
+  margin-bottom: 10px;
+}
+
+.prep-editor-heading span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.prep-editor textarea {
+  width: 100%;
+  border: 1px solid var(--line-strong);
+  border-radius: 5px;
+  resize: vertical;
+  padding: 11px;
+  background: var(--panel);
+  outline: 0;
+  line-height: 1.45;
+}
+
+.prep-editor-actions {
+  justify-content: flex-end;
+  margin-top: 10px;
+}
+
 .why-box {
   background: #f8f8f9;
   border-radius: 5px;
@@ -1702,11 +1804,13 @@ a {
 }
 
 .tooltip {
+  max-width: 220px;
   border-radius: 4px;
   background: #111827;
   color: white;
   padding: 6px 8px;
   font-size: 12px;
+  line-height: 1.35;
   z-index: 70;
 }
 

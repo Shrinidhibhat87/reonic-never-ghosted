@@ -8,6 +8,7 @@ import type {
   QuoteDetailPayload,
   QuoteRecord,
   ScheduleActionInput,
+  UpdateActionPreparationInput,
   UpdateCustomerInput,
 } from "../../server/types.js";
 
@@ -61,6 +62,11 @@ export const api = {
   scheduleAction: (actionId: string, input: ScheduleActionInput = {}) =>
     request<QuoteDetailPayload>(`/api/actions/${actionId}/schedule`, {
       method: "POST",
+      body: JSON.stringify(input),
+    }),
+  updateActionPreparation: (actionId: string, input: UpdateActionPreparationInput) =>
+    request<QuoteDetailPayload>(`/api/actions/${actionId}/preparation`, {
+      method: "PATCH",
       body: JSON.stringify(input),
     }),
   logAction: (actionId: string, input: LogActionInput) =>

@@ -49,37 +49,37 @@ const STEP_META: Record<
   "Phone Call": {
     phase: "Build trust",
     icon: "phone",
-    guideTitle: "Call plan",
-    primaryCta: "Call now",
-    secondaryCta: "Schedule call",
+    guideTitle: "Call script",
+    primaryCta: "Schedule call",
+    secondaryCta: "Edit call script",
   },
   "Meeting in person": {
     phase: "Validate the home",
     icon: "mapPin",
     guideTitle: "Visit agenda",
-    primaryCta: "Start visit",
-    secondaryCta: "Schedule visit",
+    primaryCta: "Schedule visit",
+    secondaryCta: "Edit visit agenda",
   },
   "Send Email": {
     phase: "Close cleanly",
     icon: "send",
-    guideTitle: "Message structure",
-    primaryCta: "Send recap",
+    guideTitle: "Email draft",
+    primaryCta: "Schedule email",
     secondaryCta: "Draft email",
   },
   "Send WhatsApp Video Message": {
     phase: "Reassure visually",
     icon: "fileText",
-    guideTitle: "Video outline",
-    primaryCta: "Send video",
-    secondaryCta: "Prepare video",
+    guideTitle: "Video script",
+    primaryCta: "Schedule video",
+    secondaryCta: "Edit video script",
   },
   "Send Gift": {
     phase: "Thoughtful follow-up",
     icon: "gift",
-    guideTitle: "Gesture checklist",
-    primaryCta: "Send pack",
-    secondaryCta: "Prepare pack",
+    guideTitle: "Gift note",
+    primaryCta: "Schedule gift",
+    secondaryCta: "Edit gift note",
   },
 };
 
@@ -270,6 +270,9 @@ export function mapRecommendationToPersistence(
     taskType,
     title: recommendation.nextBestAction.title,
     status: "recommended",
+    preparationTitle: STEP_META[taskType].guideTitle,
+    preparationBody: preparationBodyForAction(taskType, recommendation),
+    preparationUpdatedAt: now,
     logPromptTitle: recommendation.uiHints.logPromptTitle,
     defaultLogText: defaultLogText(taskType, detail.customer.name),
   };
@@ -611,6 +614,34 @@ function visibleStepBullets(taskType: ActionTaskType, recommendation: Recommenda
     ...base,
     firstDraftLine ? `Draft opening: ${truncate(firstDraftLine, 130)}` : "Draft email is ready for review.",
   ];
+}
+
+function preparationBodyForAction(
+  taskType: ActionTaskType,
+  recommendation: RecommendationResponse,
+) {
+  const draft = recommendation.nextBestAction.customerFacingDraft;
+  if (taskType === "Send Email" && draft) {
+    return [draft.subject ? `Subject: ${draft.subject}` : undefined, draft.body]
+      .filter(Boolean)
+      .join("\n\n");
+  }
+  if (taskType === "Send WhatsApp Video Message" && draft) {
+    return draft.body;
+  }
+  if (taskType === "Send Gift") {
+    return [
+      "Gift note:",
+      recommendation.nextBestAction.customerFacingDraft?.body ??
+        "Thank the customer for their time and include the decision-support material without making the gesture conditional on signing.",
+      "",
+      "Prepare:",
+      ...recommendation.nextBestAction.proofToPrepare.map((item) => `- ${item}`),
+    ].join("\n");
+  }
+  return recommendation.nextBestAction.agendaOrMessagePlan
+    .map((item, index) => `${index + 1}. ${item}`)
+    .join("\n");
 }
 
 function buildUpcomingSteps(

@@ -71,7 +71,10 @@ const TASK_PRIORITY: Record<TaskType, number> = {
 
 const TASK_DURATION_MINUTES: Partial<Record<TaskType, number>> = {
   "Phone Call": 20,
+  "Send Email": 20,
   "Meeting in person": 60,
+  "Send WhatsApp Video Message": 20,
+  "Send Gift": 30,
 };
 
 const MANUAL_TASK_TERMS: Array<{ taskType: TaskType; terms: string[] }> = [
@@ -1236,7 +1239,7 @@ function getSuggestedSlots(input: RecommendRequest, taskType: TaskType) {
           slots.push({
             start: cursor.toISOString(),
             end: slotEnd.toISOString(),
-            label: taskType === "Meeting in person" ? "Installer availability" : "Call slot",
+            label: taskType === "Meeting in person" ? "Installer availability" : slotLabelForTask(taskType),
           });
         }
         cursor = addMinutes(cursor, taskType === "Meeting in person" ? 60 : 30);
@@ -1262,6 +1265,22 @@ function overlapsBusy(
   });
 }
 
+function slotLabelForTask(taskType: TaskType) {
+  if (taskType === "Phone Call") {
+    return "Call slot";
+  }
+  if (taskType === "Send Email") {
+    return "Email follow-up slot";
+  }
+  if (taskType === "Send WhatsApp Video Message") {
+    return "Video message slot";
+  }
+  if (taskType === "Send Gift") {
+    return "Gift prep slot";
+  }
+  return "Follow-up slot";
+}
+
 function buildCalendarEvent(
   input: RecommendRequest,
   taskType: TaskType,
@@ -1275,7 +1294,13 @@ function buildCalendarEvent(
   const title =
     taskType === "Meeting in person"
       ? `Site validation visit - ${input.customer.name}`
-      : `Quote follow-up call - ${input.customer.name}`;
+      : taskType === "Phone Call"
+        ? `Quote follow-up call - ${input.customer.name}`
+        : taskType === "Send Email"
+          ? `Send quote follow-up email - ${input.customer.name}`
+          : taskType === "Send WhatsApp Video Message"
+            ? `Send WhatsApp video - ${input.customer.name}`
+            : `Send decision gift - ${input.customer.name}`;
 
   return {
     title,

@@ -30,6 +30,7 @@ import type {
   ReviseStrategyInput,
   ScheduleActionInput,
   StrategyRecord,
+  UpdateActionPreparationInput,
   UpdateCustomerInput,
 } from "./types.js";
 
@@ -251,24 +252,21 @@ export function scheduleAction(actionId: string, input: ScheduleActionInput): Qu
   const customer = getCustomer(action.customerId);
   const customerFirstName = customer.name.split(/\s+/)[0] ?? customer.name;
   const start = input.slotStart ?? defaultSlotFor(action.taskType);
-  const end = addMinutes(start, action.taskType === "Meeting in person" ? 60 : 20);
+  const end = addMinutes(start, durationForAction(action.taskType));
   const eventId = `cal_${action.id}`;
+  const preparationBody = input.preparationBody?.trim() || action.preparationBody;
 
   const event: CalendarEventRecord = {
     id: eventId,
-    title:
-      action.taskType === "Meeting in person"
-        ? `Visit ${customerFirstName}`
-        : action.taskType === "Phone Call"
-          ? `Call ${customerFirstName}`
-          : action.title,
+    title: calendarTitleForAction(action, customerFirstName),
     start,
     end,
     row: "theo",
-    color: action.taskType === "Meeting in person" ? "green" : "blue",
+    color: calendarColorForAction(action.taskType),
     quoteId: quote.id,
     actionId: action.id,
     ...(action.taskType === "Meeting in person" ? { location: customer.address } : {}),
+    ...(preparationBody ? { description: preparationBody } : {}),
   };
 
   putJson("calendar_events", event.id, event);
@@ -277,6 +275,12 @@ export function scheduleAction(actionId: string, input: ScheduleActionInput): Qu
     status: "scheduled",
     scheduledFor: start,
     calendarEventId: event.id,
+    ...(preparationBody
+      ? {
+          preparationBody,
+          preparationUpdatedAt: new Date().toISOString(),
+        }
+      : {}),
   });
 
   if (action.taskType === "Phone Call") {
@@ -301,9 +305,39 @@ export function scheduleAction(actionId: string, input: ScheduleActionInput): Qu
       lastActionAt: new Date().toISOString(),
       daysSinceLastAction: 0,
     });
+  } else {
+    updateQuote(quote.id, {
+      nextAction: nextActionForScheduledAsyncTask(action, quote),
+      statusLabel: "Scheduled",
+      statusTone: "blue",
+      lastActionAt: new Date().toISOString(),
+      daysSinceLastAction: 0,
+    });
   }
 
   return getQuoteDetail(quote.id);
+}
+
+export function updateActionPreparation(
+  actionId: string,
+  input: UpdateActionPreparationInput,
+): QuoteDetailPayload {
+  const action = getAction(actionId);
+  putJson("actions", action.id, {
+    ...action,
+    preparationBody: input.body,
+    preparationUpdatedAt: new Date().toISOString(),
+  });
+
+  if (action.calendarEventId) {
+    const event = getCalendarEvent(action.calendarEventId);
+    putJson("calendar_events", event.id, {
+      ...event,
+      description: input.body,
+    });
+  }
+
+  return getQuoteDetail(action.quoteId);
 }
 
 export async function logAction(actionId: string, input: LogActionInput): Promise<QuoteDetailPayload> {
@@ -412,6 +446,16 @@ export function getAction(actionId: string): ActionRecord {
     throw notFound(`Action ${actionId} not found`);
   }
   return parseJson<ActionRecord>(row.data);
+}
+
+function getCalendarEvent(eventId: string): CalendarEventRecord {
+  const row = getDb()
+    .prepare("select data from calendar_events where id = ?")
+    .get(eventId) as JsonRow | undefined;
+  if (!row) {
+    throw notFound(`Calendar event ${eventId} not found`);
+  }
+  return parseJson<CalendarEventRecord>(row.data);
 }
 
 async function refreshRecommendation(
@@ -843,7 +887,74 @@ function defaultSlotFor(taskType: ActionRecord["taskType"]) {
   if (taskType === "Meeting in person") {
     return "2026-06-23T11:00:00.000Z";
   }
+  if (taskType === "Send Email" || taskType === "Send WhatsApp Video Message" || taskType === "Send Gift") {
+    return "2026-06-22T12:30:00.000Z";
+  }
   return "2026-06-22T10:30:00.000Z";
+}
+
+function durationForAction(taskType: ActionRecord["taskType"]) {
+  if (taskType === "Meeting in person") {
+    return 60;
+  }
+  if (taskType === "Send Gift") {
+    return 30;
+  }
+  return 20;
+}
+
+function calendarTitleForAction(action: ActionRecord, customerFirstName: string) {
+  if (action.taskType === "Meeting in person") {
+    return `Visit ${customerFirstName}`;
+  }
+  if (action.taskType === "Phone Call") {
+    return `Call ${customerFirstName}`;
+  }
+  if (action.taskType === "Send Email") {
+    return `Send email to ${customerFirstName}`;
+  }
+  if (action.taskType === "Send WhatsApp Video Message") {
+    return `Send WhatsApp video to ${customerFirstName}`;
+  }
+  return `Send gift to ${customerFirstName}`;
+}
+
+function calendarColorForAction(taskType: ActionRecord["taskType"]): CalendarEventRecord["color"] {
+  if (taskType === "Meeting in person" || taskType === "Send Gift") {
+    return "green";
+  }
+  if (taskType === "Send Email" || taskType === "Send WhatsApp Video Message") {
+    return "blue";
+  }
+  return "orange";
+}
+
+function nextActionForScheduledAsyncTask(
+  action: ActionRecord,
+  quote: QuoteRecord,
+): QuoteRecord["nextAction"] {
+  if (action.taskType === "Send WhatsApp Video Message") {
+    return {
+      kind: "send_whatsapp_video",
+      label: "Send video",
+      actionId: action.id,
+      tone: "blue",
+    };
+  }
+  if (action.taskType === "Send Gift") {
+    return {
+      kind: "send_gift",
+      label: "Send gift",
+      actionId: action.id,
+      tone: "green",
+    };
+  }
+  return {
+    kind: quote.nextAction.kind === "follow_up_signature" ? "follow_up_signature" : "send_final_recap",
+    label: quote.nextAction.kind === "follow_up_signature" ? "Follow up signature" : "Send recap",
+    actionId: action.id,
+    tone: quote.nextAction.kind === "follow_up_signature" ? "yellow" : "blue",
+  };
 }
 
 function addMinutes(iso: string, minutes: number) {

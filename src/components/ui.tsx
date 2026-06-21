@@ -76,15 +76,17 @@ export function IconButton({
   label,
   children,
   onClick,
+  className,
 }: {
   label: string;
   children: ReactNode;
   onClick?: () => void;
+  className?: string;
 }) {
   return (
     <Tooltip.Root>
       <Tooltip.Trigger asChild>
-        <button className="icon-button" type="button" onClick={onClick} aria-label={label}>
+        <button className={`icon-button${className ? ` ${className}` : ""}`} type="button" onClick={onClick} aria-label={label}>
           {children}
         </button>
       </Tooltip.Trigger>

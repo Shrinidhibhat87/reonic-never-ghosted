@@ -142,6 +142,9 @@ export interface ActionRecord {
   supersededAt?: string;
   supersededByActionId?: string;
   calendarEventId?: string;
+  preparationTitle?: string;
+  preparationBody?: string;
+  preparationUpdatedAt?: string;
   logPromptTitle: string;
   defaultLogText: string;
 }
@@ -156,6 +159,7 @@ export interface CalendarEventRecord {
   quoteId?: string;
   actionId?: string;
   location?: string;
+  description?: string;
 }
 
 export interface NoteRecord {
@@ -193,6 +197,7 @@ export interface QuoteDetailPayload {
 
 export interface ScheduleActionInput {
   slotStart?: string;
+  preparationBody?: string;
 }
 
 export interface LogActionInput {
@@ -201,6 +206,10 @@ export interface LogActionInput {
 
 export interface ReviseStrategyInput {
   instruction: string;
+}
+
+export interface UpdateActionPreparationInput {
+  body: string;
 }
 
 export interface UpdateCustomerInput {

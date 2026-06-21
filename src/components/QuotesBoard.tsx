@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { api, formatMoney } from "../lib/api.js";
+import { getQuoteLikelihood } from "../lib/quoteLikelihood.js";
+import { LikelihoodPill } from "./LikelihoodPill.js";
 import { Avatar, Badge, ErrorState, IconButton, LoadingState, PageHeader } from "./ui.js";
 import { LogActionDialog } from "./LogActionDialog.js";
 import type { ActionRecord, BootstrapPayload, CreateQuoteInput, QuoteRecord } from "../../server/types.js";
@@ -144,6 +146,7 @@ function QuoteCard({
     ) : (
       <Clock3 size={14} />
     );
+  const likelihood = getQuoteLikelihood(quote);
 
   return (
     <article className="quote-card">
@@ -165,6 +168,7 @@ function QuoteCard({
         <span>{quote.address}</span>
       </div>
       <div className="quote-meta-row">
+        <LikelihoodPill likelihood={likelihood} />
         {quote.statusLabel ? (
           <Badge tone={quote.statusTone ?? "blue"}>{quote.statusLabel}</Badge>
         ) : null}
