@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 import type { KnowledgeReference, TaskType } from "./schemas.js";
 
@@ -112,7 +113,8 @@ export interface LoadedKnowledgeBase {
   reviewObservations: ReviewObservation[];
 }
 
-const KNOWLEDGEBASE_DIR = join(process.cwd(), "knowledgebase");
+const AGENT_DIR = join(dirname(fileURLToPath(import.meta.url)), "..");
+const KNOWLEDGEBASE_DIR = process.env.KNOWLEDGEBASE_DIR ?? join(AGENT_DIR, "knowledgebase");
 
 let cachedKnowledgeBase: LoadedKnowledgeBase | undefined;
 
