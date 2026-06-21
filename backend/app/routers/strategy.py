@@ -88,6 +88,13 @@ def revise_step(
         raise HTTPException(status_code=404, detail="deal not found")
     step = _load_step(session, deal_id, order)
     result = get_engine().revise(ctx, step, body.instruction)
+    if result.applied:
+        # Persist the revised step into the play so it survives a reload, not just the FE swap.
+        strategy = queries.latest_strategy(session, deal_id)
+        if strategy is not None:
+            updated = result.step.model_dump(mode="json")
+            strategy.steps = [updated if s["order"] == order else s for s in strategy.steps]
+            session.add(strategy)
     _log(session, deal_id, "revise", result.model_dump(mode="json"))
     session.commit()
     return result

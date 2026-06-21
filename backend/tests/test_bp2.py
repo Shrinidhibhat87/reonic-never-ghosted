@@ -43,9 +43,20 @@ def test_draft_and_revise_append(seeded, session):
     assert draft.status_code == 200
     assert draft.json()["message"]
 
+    before = client.post("/deals/2/strategy").json()["steps"][0]
     rev = client.post("/deals/2/steps/1/revise", json={"instruction": "make it warmer"})
     assert rev.status_code == 200
     assert rev.json()["applied"] is True
+
+    # the loop closes: the returned step actually changed and reflects the instruction
+    revised = rev.json()["step"]
+    assert revised != before
+    assert "make it warmer" in revised["rationale"]
+
+    # and the change is persisted into the play, not just echoed back
+    persisted = client.get("/deals/2").json()["strategy"]["steps"]
+    step1 = next(s for s in persisted if s["order"] == 1)
+    assert "make it warmer" in step1["rationale"]
 
     types = {
         e.event_type

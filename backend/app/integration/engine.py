@@ -146,7 +146,14 @@ class FakeEngine:
         return f"[fake draft] Hi {ctx.customer.name}, re: your quote — {step.rationale}"
 
     def revise(self, ctx: EngineContext, step: Step, instruction: str) -> RevisionResult:
-        return RevisionResult(applied=True, step=step, reason=f"fake engine applied: {instruction}")
+        # Close the loop: fold the instruction into the step so the play visibly updates.
+        revised = step.model_copy(deep=True)
+        revised.rationale = f"{step.rationale}\n\nRevised per installer: {instruction}"
+        revised.evidence_chips = [
+            *step.evidence_chips,
+            EvidenceChip(kind="behavioral", text=f"installer asked to {instruction}"),
+        ]
+        return RevisionResult(applied=True, step=revised, reason=f"Updated this step — {instruction}")
 
 
 def get_engine() -> StrategyEngine:
