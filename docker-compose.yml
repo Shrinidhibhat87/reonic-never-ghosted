@@ -1,15 +1,37 @@
+# Full stack: Postgres + VoltAgent + FastAPI backend + Next.js frontend.
+#
+#   cp .env.example .env   # put your OPENAI_API_KEY in it
+#   docker compose up --build
+#   curl -X POST http://localhost:8000/admin/seed   # load demo data (once)
+#
+# Then open http://localhost:3000.
 services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: ng
+      POSTGRES_PASSWORD: ng
+      POSTGRES_DB: never_ghosted
+    ports:
+      - "${POSTGRES_PORT:-5434}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ng -d never_ghosted"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
   agent:
-    build:
-      context: ./agent
-    # Provides OPENAI_API_KEY (and optional OPENAI_BASE_URL / VOLTAGENT_MODEL overrides).
+    build: ./agent
+    # OPENAI_API_KEY (+ optional OPENAI_BASE_URL / VOLTAGENT_MODEL) come from .env.
     env_file:
       - .env
     environment:
       PORT: "3141"
       VOLTAGENT_MEMORY_URL: file:/app/.voltagent/memory.db
     ports:
-      - "3141:3141"
+      - "${AGENT_PORT:-3141}:3141"
     volumes:
       - agent-data:/app/.voltagent
     healthcheck:
@@ -19,24 +41,34 @@ services:
       retries: 12
       start_period: 20s
 
-  web:
-    build:
-      context: .
+  backend:
+    build: ./backend
+    env_file:
+      - .env  # OPENAI_API_KEY for the Python fallback engine
     environment:
-      PORT: "5173"
-      # The browser talks only to the web app; the web app calls the agent server-side.
+      # Point at the compose services, not localhost.
+      NG_DATABASE_URL: postgresql+psycopg://ng:ng@db:5432/never_ghosted
       REONIC_AGENT_URL: http://agent:3141
-      # Fail loudly if the live agent call breaks instead of using the deterministic fallback.
-      REONIC_AGENT_STRICT: "true"
-      REONIC_DEMO_DB: /app/.data/reonic-demo.sqlite
+      NG_ENGINE: ${NG_ENGINE:-voltagent}
     ports:
-      - "5173:5173"
-    volumes:
-      - web-data:/app/.data
+      - "${API_PORT:-8000}:8000"
     depends_on:
-      agent:
+      db:
         condition: service_healthy
+      agent:
+        condition: service_started
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        # Baked into the browser bundle, so it must be host-reachable.
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    depends_on:
+      - backend
 
 volumes:
+  pgdata:
   agent-data:
-  web-data:

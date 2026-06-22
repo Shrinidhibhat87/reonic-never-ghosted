@@ -1,0 +1,25 @@
+{
+  "reviews": [
+    {"source": "Trustpilot", "rating": 4.6, "theme": "responsiveness",
+     "quote": "They answered every question within a day and never pushed us."},
+    {"source": "Trustpilot", "rating": 4.8, "theme": "proximity_trust",
+     "quote": "Local team, came on-site twice before we even signed."},
+    {"source": "Google", "rating": 4.2, "theme": "roi_transparency",
+     "quote": "Showed us the payback math with our own electricity bill, no fluff."},
+    {"source": "ProvenExpert", "rating": 4.5, "theme": "aftercare",
+     "quote": "Two years in, still pick up the phone when we call."},
+    {"source": "Trustpilot", "rating": 3.9, "theme": "winter_performance",
+     "quote": "Heat pump handled the cold snap fine, they set expectations honestly."}
+  ],
+  "competitor_prices": [
+    {"product": "solar_pv", "region": "Bayern", "median_price_eur": 16500, "kwp": 9.6},
+    {"product": "heat_pump", "region": "NRW", "median_price_eur": 21000},
+    {"product": "battery", "region": "Hamburg", "median_price_eur": 8500, "kwh": 10},
+    {"product": "ev_charger", "region": "Bayern", "median_price_eur": 1300}
+  ],
+  "satisfaction_patterns": [
+    {"pattern": "consistent_contact_person", "effect": "raises trust pre-signature"},
+    {"pattern": "clear_line_items", "effect": "defuses bundled-scope suspicion"},
+    {"pattern": "no_pressure_next_step", "effect": "reduces ghosting on skeptics"}
+  ]
+}
