@@ -132,7 +132,11 @@ export function buildSynthesisPrompt(params: {
           debriefs: params.request.history.debriefs.slice(-5),
           files: params.request.history.files.slice(-5),
         },
-        deterministicRecommendation: params.recommendation,
+        // Enriched by the agent evaluation step — use improved summary if present.
+        agentEvaluation: params.recommendation.reasoning.decisionFactors.find(
+          (f) => f.factor === "agent_evaluation",
+        )?.detail,
+        recommendation: params.recommendation,
       },
       null,
       2,
