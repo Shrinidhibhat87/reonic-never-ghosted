@@ -1,9 +1,11 @@
 // One helper per backend endpoint. No scattered fetch in pages.
 import type {
   Appointment,
+  Deal,
   DealDetail,
   Lead,
   Note,
+  PersonalTouch,
   RevisionResult,
   StrategyOptions,
   StrategyResult,
@@ -62,6 +64,12 @@ export const addNote = (dealId: number, content: string, type: "text" | "voice" 
   req<Note>(`/deals/${dealId}/notes`, {
     method: "POST",
     body: JSON.stringify({ content, type }),
+  });
+
+export const setPersonalTouches = (dealId: number, touches: PersonalTouch[]) =>
+  req<Deal>(`/deals/${dealId}/personal-touches`, {
+    method: "PUT",
+    body: JSON.stringify({ touches }),
   });
 
 export const getAppointments = (installerId = 1) =>

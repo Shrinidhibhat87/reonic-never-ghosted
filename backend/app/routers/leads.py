@@ -24,6 +24,22 @@ class LeadOut(BaseModel):
     ghost_risk: float  # 0..1 — recency-driven "likely to ghost" signal
     days_since_touch: int
     has_strategy: bool  # a strategy was already generated for this deal
+    board_phase: str  # which Kanban column: derived from stage + install_progress
+    sub_status: str | None
+    partner_name: str | None
+    install_progress: int | None
+
+
+# Maps the engine's sales stage onto the 4 board columns. Post-sign deals (won)
+# split into "waiting for install" vs "complete" by install_progress.
+def _board_phase(stage: str, install_progress: int | None) -> str:
+    if stage in ("quote_sent", "engaged", "negotiating"):
+        return "quote_sent"
+    if stage == "verbal_commit":
+        return "to_specialist"
+    if stage == "won":
+        return "installation_complete" if (install_progress or 0) >= 100 else "waiting_install"
+    return "archived"  # lost / ghosted
 
 
 def _ghost_risk(last_activity: datetime) -> tuple[float, int]:
@@ -57,6 +73,10 @@ def list_leads(installer_id: int, session: Session = Depends(get_session)) -> li
                 ghost_risk=risk,
                 days_since_touch=days,
                 has_strategy=queries.latest_strategy(session, deal.id) is not None,
+                board_phase=_board_phase(deal.stage.value, deal.install_progress),
+                sub_status=deal.sub_status,
+                partner_name=deal.partner_name,
+                install_progress=deal.install_progress,
             )
         )
     return out

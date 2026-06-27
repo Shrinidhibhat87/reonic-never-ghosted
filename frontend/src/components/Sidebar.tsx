@@ -14,7 +14,6 @@ import { FeatherContact } from "@subframe/core";
 import { FeatherFileText } from "@subframe/core";
 import { FeatherHardHat } from "@subframe/core";
 import { FeatherHelpCircle } from "@subframe/core";
-import { FeatherInbox } from "@subframe/core";
 import { FeatherLayoutDashboard } from "@subframe/core";
 import { FeatherReceipt } from "@subframe/core";
 import { FeatherSearch } from "@subframe/core";
@@ -35,9 +34,6 @@ const NAV: NavItem[] = [
   { label: "Dashboard", icon: <FeatherLayoutDashboard /> },
   { label: "Contacts", icon: <FeatherContact /> },
   { label: "Tasks", icon: <FeatherClipboardList /> },
-  // Deal detail/strategy live under /requests; the board lives at /quotes —
-  // keep the two highlights mutually exclusive so only one is active at a time.
-  { label: "Requests", icon: <FeatherInbox />, href: "/quotes", match: (p) => p.startsWith("/requests") },
   { label: "Quotes", icon: <FeatherFileText />, href: "/quotes", match: (p) => p.startsWith("/quotes") },
   { label: "Calendar", icon: <FeatherCalendar />, href: "/calendar", match: (p) => p.startsWith("/calendar") },
   { label: "Installations", icon: <FeatherHardHat /> },

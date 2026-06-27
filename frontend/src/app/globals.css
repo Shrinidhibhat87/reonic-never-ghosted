@@ -11,3 +11,23 @@ html {
 body {
   flex-grow: 1;
 }
+
+.app-main {
+  view-transition-name: app-main;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  ::view-transition-old(app-main),
+  ::view-transition-new(app-main) {
+    animation-duration: 0.25s;
+  }
+  ::view-transition-old(app-main) { animation-name: slide-out-left; }
+  ::view-transition-new(app-main) { animation-name: slide-in-right; }
+  html.nav-back ::view-transition-old(app-main) { animation-name: slide-out-right; }
+  html.nav-back ::view-transition-new(app-main) { animation-name: slide-in-left; }
+}
+
+@keyframes slide-in-right { from { transform: translateX(24px); opacity: 0; } }
+@keyframes slide-out-left { to { transform: translateX(-24px); opacity: 0; } }
+@keyframes slide-in-left { from { transform: translateX(-24px); opacity: 0; } }
+@keyframes slide-out-right { to { transform: translateX(24px); opacity: 0; } }

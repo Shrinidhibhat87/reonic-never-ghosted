@@ -51,30 +51,51 @@ PRODUCT_SETS = [
         {"type": "ev_charger", "spec": "11 kW", "qty": 1},
     ],
 ]
+PARTNERS = ["Voltaro GmbH", "SolarTeam Nord", "EnergieWerk Süd", "PV-Profis Berlin"]
 REGIONS = ["Bavaria", "NRW", "Berlin", "Hesse", "Saxony"]
+REGION_CITY = {"Bavaria": "München", "NRW": "Düsseldorf", "Berlin": "Berlin", "Hesse": "Frankfurt", "Saxony": "Dresden"}
+STREETS = ["Sonnenberg", "Lerchenweg", "Provinostr.", "Rosenstr.", "Ahornweg", "Industriestr.", "Langweider Str."]
+CONTACT_TIMES = ["weekday evenings after 18:00", "mornings before 09:00", "weekends only", "any time during work hours"]
 FIRST = ["Anna", "Lukas", "Marie", "Jonas", "Lena", "Felix", "Sophie", "Paul", "Emma", "Max"]
 LAST = ["Müller", "Schmidt", "Weber", "Wagner", "Becker", "Hofmann", "Koch", "Richter"]
+_UMLAUT = str.maketrans({"ü": "ue", "ö": "oe", "ä": "ae", "ß": "ss"})
 
 
 def _name(rng: random.Random) -> str:
     return f"{rng.choice(FIRST)} {rng.choice(LAST)}"
 
 
+def _email(name: str) -> str:
+    return name.lower().translate(_UMLAUT).replace(" ", ".") + "@email.de"
+
+
 def _make_customer(rng: random.Random, org_id: int, installer_id: int) -> Customer:
+    name = _name(rng)
+    region = rng.choice(REGIONS)
+    income = rng.choice(["low", "mid", "high"])
+    channel = rng.choice(["Phone", "Email", "WhatsApp", "SMS"])
+    budget_band = {"low": "€15k–25k", "mid": "€30k–40k", "high": "€45k–60k"}[income]
+    financing = rng.choice(["wants monthly financing, sensitive to upfront cost", "comfortable paying upfront", "exploring KfW subsidy options"])
     return Customer(
         org_id=org_id,
         assigned_installer_id=installer_id,
-        name=_name(rng),
-        region=rng.choice(REGIONS),
+        name=name,
+        region=region,
         locale="de-DE",
         contact_channels=rng.sample(["email", "phone", "sms", "whatsapp"], k=rng.randint(1, 3)),
+        channel_preference=channel,
         age=rng.randint(28, 70),
         household_type=rng.choice(["family", "single", "retiree", "couple"]),
-        annual_income_band=rng.choice(["low", "mid", "high"]),
+        annual_income_band=income,
         current_energy_bill=round(rng.uniform(900, 3200), 2),
         home_ownership=rng.choice(["owner", "owner", "tenant"]),
         property_type=rng.choice(["detached", "semi", "apartment"]),
         distance_to_installer_km=round(rng.uniform(2, 60), 1),
+        email=_email(name),
+        phone=f"+49 {rng.randint(150, 179)} {rng.randint(1000000, 9999999)}",
+        address=f"{rng.choice(STREETS)} {rng.randint(1, 99)}, {rng.randint(10000, 99999)} {REGION_CITY[region]}",
+        contact_preference=f"{channel} — {rng.choice(CONTACT_TIMES)}",
+        budget_note=f"{budget_band} · {financing}",
     )
 
 
@@ -176,12 +197,29 @@ def seed(session: Session) -> dict[str, int]:
         session.commit()
         session.refresh(quote)
         last_activity = sent_at + timedelta(days=rng.randint(0, 20))
+        # Board-only post-sign fields. verbal_commit → specialist handoff;
+        # won → installing (progress < 100) or complete (100). Others stay None.
+        install_progress = sub_status = partner_name = None
+        if stage == DealStage.verbal_commit:
+            partner_name = rng.choice(PARTNERS)
+            sub_status = rng.choice(["Specialist reviewing site survey", "Contract signed — handing to install"])
+        elif stage == DealStage.won:
+            partner_name = rng.choice(PARTNERS)
+            install_progress = rng.choice([35, 55, 65, 80, 100, 100])
+            sub_status = (
+                rng.choice(["Live & monitoring", "Commissioned · handover signed"])
+                if install_progress >= 100
+                else rng.choice(["Install scheduled", "Site prep · awaiting parts"])
+            )
         deal = Deal(
             customer_id=cust.id,
             quote_id=quote.id,
             installer_id=installer_id,
             stage=stage,
             last_activity_at=last_activity,
+            install_progress=install_progress,
+            sub_status=sub_status,
+            partner_name=partner_name,
             outcome=stage.value if terminal else None,
             outcome_reason=rng.choice(["price", "competitor", "no_response", "happy"]) if terminal else None,
         )

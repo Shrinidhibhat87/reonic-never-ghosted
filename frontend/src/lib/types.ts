@@ -13,6 +13,10 @@ export interface Lead {
   ghost_risk: number; // 0..1 — likely to ghost (quiet/unworked)
   days_since_touch: number;
   has_strategy: boolean;
+  board_phase: string; // quote_sent | to_specialist | waiting_install | installation_complete | archived
+  sub_status: string | null; // short board caption for post-sign deals
+  partner_name: string | null; // specialist partner on the install
+  install_progress: number | null; // 0..100 for won/installing deals
 }
 
 export interface Customer {
@@ -23,6 +27,11 @@ export interface Customer {
   channel_preference?: string | null;
   current_energy_bill?: number | null;
   property_type?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  address?: string | null;
+  contact_preference?: string | null;
+  budget_note?: string | null;
   [k: string]: unknown;
 }
 
@@ -39,11 +48,18 @@ export interface Quote {
   [k: string]: unknown;
 }
 
+export interface PersonalTouch {
+  id: string;
+  emoji: string;
+  label: string;
+}
+
 export interface Deal {
   id: number;
   stage: string;
   current_goal: string;
   last_activity_at: string;
+  personal_touches?: PersonalTouch[];
   [k: string]: unknown;
 }
 
