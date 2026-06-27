@@ -268,6 +268,9 @@ function titleForStep(stepId: string | undefined, status: "running" | "success")
   if (normalized === "diagnose-and-score" || normalized.includes("diagnose and score")) {
     return status === "running" ? "Scoring next actions" : "Next actions scored";
   }
+  if (normalized === "evaluate-recommendation" || normalized.includes("evaluate")) {
+    return status === "running" ? "Agent evaluating recommendation" : "Recommendation evaluated";
+  }
   if (normalized === "synthesize-strategy" || normalized.includes("synthesize")) {
     return status === "running" ? "Writing demo-ready strategy" : "Strategy wording complete";
   }

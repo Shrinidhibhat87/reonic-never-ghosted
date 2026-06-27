@@ -26,6 +26,80 @@ flowchart TD
   - **Python** (backup): a local in-process engine (`engine/`). Needs `OPENAI_API_KEY`.
   - **Deterministic**: a no-LLM fixture engine for offline demos and tests.
 
+## Happy-path flow (VoltAgent engine)
+
+End-to-end sequence from "user opens Closing Strategy" to "rendered plan", including
+every agentic step visible in the VoltOps console.
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant FE as Next.js :3000
+    participant BE as FastAPI :8000
+    participant DB as Postgres
+    participant AG as VoltAgent :3141
+    participant LLM as OpenAI LLM
+
+    User->>FE: Opens Closing Strategy page
+    FE->>BE: GET /api/strategy/{dealId}
+    BE->>DB: Load deal, quote, customer, signals, touches
+    DB-->>BE: EngineContext rows
+
+    BE->>AG: POST /api/recommend-next-action<br/>(RecommendRequest JSON)
+
+    Note over AG: Workflow: recommend-next-action
+
+    rect rgb(240,248,255)
+        Note over AG: S1 — validate-context (deterministic)
+        AG->>AG: Confirm customer, quote, consent, calendar present
+    end
+
+    rect rgb(240,248,255)
+        Note over AG: S2 — load-knowledgebase (deterministic)
+        AG->>AG: Load buyer-signals, objections,<br/>task-playbooks, customer-reviews
+    end
+
+    rect rgb(240,248,255)
+        Note over AG: S3 — diagnose-and-score (deterministic)
+        AG->>AG: Score 5 task types against signals,<br/>objections, consent, calendar, KB rules
+        AG->>AG: Select top action + alternatives
+    end
+
+    rect rgb(255,245,230)
+        Note over AG: S4 — evaluate-recommendation (LLM call ①)
+        AG->>LLM: generateObject — evaluate scoring fit,<br/>return confidence + improved reasoning
+        LLM-->>AG: {confidence, primaryReason, improvedSummary}
+        AG->>AG: Enrich reasoning.decisionFactors with agent_evaluation
+    end
+
+    rect rgb(255,245,230)
+        Note over AG: S5 — synthesize-strategy (LLM call ②)
+        AG->>LLM: generateObject — write installer-facing copy,<br/>agenda, proof list, customer draft
+        LLM-->>AG: {strategyHeadline, agendaOrMessagePlan, ...}
+        AG->>AG: Merge synthesis into RecommendationResponse
+    end
+
+    AG-->>BE: RecommendationResponse JSON
+    BE->>BE: Map recommendation → StrategyResult<br/>(channels, personas, evidence chips)
+    BE-->>FE: StrategyResult JSON
+    FE->>User: Render buyer profile, persona mix,<br/>closing play, evidence chips
+```
+
+### VoltOps trace blocks per run
+
+| # | Block | Type | Triggered by |
+|---|-------|------|-------------|
+| 1 | Workflow span | workflow | `recommendNextActionWorkflow.run()` |
+| 2 | S1 validate-context | step | `andThen` chain |
+| 3 | S2 load-knowledgebase | step | `andThen` chain |
+| 4 | S3 diagnose-and-score | step | `andThen` chain |
+| 5 | S4 evaluate-recommendation | step | `andThen` chain |
+| 6 | LLM call (evaluation) | llm | `generateObject` in S4 |
+| 7 | S5 synthesize-strategy | step | `andThen` chain |
+| 8 | LLM call (synthesis) | llm | `generateObject` in S5 |
+
+Open **console.voltagent.dev** → connect to `http://localhost:3141` to see live runs.
+
 ## Setup
 
 ```bash
