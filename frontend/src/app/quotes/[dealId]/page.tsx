@@ -8,7 +8,9 @@ import { IconButton } from "@/ui/components/IconButton";
 import { TextArea } from "@/ui/components/TextArea";
 import { TextField } from "@/ui/components/TextField";
 import { FeatherAlertTriangle } from "@subframe/core";
+import { FeatherCheck } from "@subframe/core";
 import { FeatherChevronRight } from "@subframe/core";
+import { FeatherSparkles } from "@subframe/core";
 import { FeatherClipboardList } from "@subframe/core";
 import { FeatherDownload } from "@subframe/core";
 import { FeatherEdit2 } from "@subframe/core";
@@ -27,8 +29,10 @@ import { FeatherZap } from "@subframe/core";
 import { useRouter, useParams } from "next/navigation";
 import { Sidebar } from "@/components/Sidebar";
 import { InfoTip } from "@/components/InfoTip";
-import { addNote, getDeal } from "@/lib/api";
-import type { DealDetail, Note } from "@/lib/types";
+import { FeatherArrowLeft } from "@subframe/core";
+import { addNote, getDeal, setPersonalTouches } from "@/lib/api";
+import { navTo } from "@/lib/nav";
+import type { DealDetail, Note, PersonalTouch } from "@/lib/types";
 
 function fmtPrice(v: number, currency: string) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency, maximumFractionDigits: 0 }).format(v);
@@ -45,33 +49,66 @@ function ghostMeta(risk: number): { label: string; variant: "error" | "warning" 
   return { label: "Fresh", variant: "success" };
 }
 
-// Age drives how we reach out: older buyers prefer tactile/personal channels,
-// younger ones are mobile-native. Used to seed the preferred channel + the
-// communication-style hint the strategy leans on.
-function preferredChannel(age: number | null): string {
-  if (age == null) return "E-mail";
-  if (age >= 60) return "Personal letter";
-  if (age >= 45) return "E-mail";
-  if (age >= 32) return "WhatsApp";
-  return "Video message";
-}
-function commsStyle(age: number | null): string {
-  if (age == null) return "Balanced — mix of digital and personal touch";
-  if (age >= 60) return "Formal & personal — letters and calls over digital pings";
-  if (age >= 45) return "Considered — email-first, values a written recap";
-  if (age >= 32) return "Fast & informal — WhatsApp check-ins land best";
-  return "Visual & mobile-native — short video messages cut through";
-}
-function ageBand(age: number | null): string {
-  if (age == null) return "—";
-  const lo = Math.floor(age / 10) * 10;
-  return `${age} · ${lo}–${lo + 9} band`;
+const IDEAS = [
+  { id: "wine", emoji: "🍷", label: "Send a local bottle of wine" },
+  { id: "honey", emoji: "🍯", label: "Send regional wildflower honey" },
+  { id: "voucher", emoji: "🎁", label: "Personalized birthday voucher" },
+  { id: "card", emoji: "✉️", label: "Handwritten thank-you card" },
+  { id: "cafe", emoji: "☕", label: "Local café gift card" },
+];
+
+function OutOfBoxIdeas({ name, dealId, initial }: { name: string; dealId: number; initial: PersonalTouch[] }) {
+  const [added, setAdded] = React.useState<Set<string>>(new Set(initial.map((t) => t.id)));
+  function toggle(id: string) {
+    setAdded((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      setPersonalTouches(dealId, IDEAS.filter((i) => next.has(i.id))).catch(() => {});
+      return next;
+    });
+  }
+  return (
+    <div className="flex w-full flex-col items-start gap-3 rounded-lg border border-solid border-brand-100 bg-brand-50 px-6 py-5">
+      <div className="flex w-full items-center gap-2">
+        <FeatherSparkles className="text-heading-3 font-heading-3 text-brand-600" />
+        <span className="grow shrink-0 basis-0 text-heading-3 font-heading-3 text-default-font">
+          Out-of-the-box ways to win {name}
+        </span>
+        <Badge variant="brand">{added.size} added to plan</Badge>
+      </div>
+      <span className="text-caption font-caption text-subtext-color">Tap an idea to fold a personal touch into the strategy.</span>
+      <div className="flex w-full flex-wrap items-center gap-2">
+        {IDEAS.map((idea) => {
+          const on = added.has(idea.id);
+          return (
+            <button
+              key={idea.id}
+              onClick={() => toggle(idea.id)}
+              className={`flex items-center gap-2 rounded-full border border-solid px-3 py-1.5 text-caption font-caption transition-colors ${
+                on
+                  ? "border-brand-300 bg-brand-100 text-brand-700"
+                  : "border-neutral-border bg-default-background text-default-font hover:border-brand-200"
+              }`}
+            >
+              <span>{idea.emoji}</span>
+              <span>{idea.label}</span>
+              {on ? (
+                <FeatherCheck className="text-caption text-brand-600" />
+              ) : (
+                <FeatherPlus className="text-caption text-subtext-color" />
+              )}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
 
 export default function LeadMasterDataPage() {
   const router = useRouter();
   const params = useParams();
-  const dealId = Number(params.id);
+  const dealId = Number(params.dealId);
 
   const [data, setData] = React.useState<DealDetail | null>(null);
   const [error, setError] = React.useState<string>("");
@@ -122,9 +159,11 @@ export default function LeadMasterDataPage() {
   );
 
   const { customer, quote, deal } = data;
-  const age = (customer.age as number | null) ?? null;
-  const channel = customer.channel_preference ?? preferredChannel(age);
+  const channel = customer.channel_preference ?? "Email";
   const system = quote.products.map((p) => p.type).join(" + ") || "—";
+  const decisionContext = data.competitor
+    ? `Comparing with ${(data.competitor.competitor_name as string) ?? "another installer"}`
+    : "No active comparison flagged";
   const { risk, days } = ghostFromActivity(deal.last_activity_at);
   const gm = ghostMeta(risk);
 
@@ -137,14 +176,17 @@ export default function LeadMasterDataPage() {
   return (
     <div className="flex h-full w-full items-start bg-default-background">
       <Sidebar />
-      <div className="flex grow shrink-0 basis-0 flex-col items-start self-stretch overflow-auto">
+      <div className="app-main flex grow shrink-0 basis-0 flex-col items-start self-stretch overflow-auto">
         <div className="flex w-full flex-wrap items-center gap-4 border-b border-solid border-neutral-border px-8 py-4 mobile:px-4">
+          <Button variant="neutral-tertiary" icon={<FeatherArrowLeft />} onClick={() => navTo(router, "/quotes", { back: true })}>
+            Quotes
+          </Button>
           <div className="flex grow shrink-0 basis-0 items-center gap-2">
             <span
               className="text-body font-body text-subtext-color cursor-pointer hover:text-default-font"
-              onClick={() => router.push("/quotes")}
+              onClick={() => navTo(router, "/quotes", { back: true })}
             >
-              Requests
+              Quotes
             </span>
             <FeatherChevronRight className="text-body font-body text-subtext-color" />
             <span className="text-body font-body text-subtext-color">{customer.name}</span>
@@ -157,6 +199,9 @@ export default function LeadMasterDataPage() {
           <InfoTip
             text={`Ghost risk ${Math.round(risk * 100)}% — ${days} day(s) since last activity. The longer a quoted prospect stays quiet, the more likely they ghost. Working the strategy resets this.`}
           />
+          <Button icon={<FeatherWand />} onClick={() => navTo(router, `/quotes/${dealId}/strategy`)}>
+            {data.strategy ? "View strategy" : "Generate strategy"}
+          </Button>
         </div>
         <div className="flex w-full flex-col items-start gap-6 px-8 py-8 mobile:px-4 mobile:py-6">
           {strategyStale && (
@@ -166,12 +211,18 @@ export default function LeadMasterDataPage() {
               title="New input since the strategy was generated"
               description="You added notes after the closing strategy was built — regenerate so the plan reflects the latest context."
               actions={
-                <Button icon={<FeatherWand />} onClick={() => router.push(`/requests/${dealId}/strategy`)}>
+                <Button icon={<FeatherWand />} onClick={() => navTo(router, `/quotes/${dealId}/strategy`)}>
                   Regenerate strategy
                 </Button>
               }
             />
           )}
+
+          <OutOfBoxIdeas
+            name={customer.name.split(" ")[0]}
+            dealId={dealId}
+            initial={(deal.personal_touches as PersonalTouch[]) ?? []}
+          />
 
           {/* Prospect info */}
           <div className="flex w-full flex-col items-start gap-4 rounded-lg border border-solid border-neutral-border bg-default-background px-6 py-5 shadow-sm">
@@ -189,34 +240,23 @@ export default function LeadMasterDataPage() {
               <span className="text-caption font-caption text-subtext-color">Used to personalize the closing strategy</span>
             </div>
             <div className="flex w-full flex-wrap items-start gap-4 border-t border-solid border-neutral-border pt-4">
-              <TextField className="h-auto min-w-[240px] grow shrink-0 basis-0" label="Name" helpText="">
-                <TextField.Input value={customer.name} onChange={() => {}} />
+              <TextField className="h-auto min-w-[240px] grow shrink-0 basis-0" label="Preferred contact" helpText="">
+                <TextField.Input value={customer.contact_preference ?? channel} onChange={() => {}} />
               </TextField>
-              <TextField className="h-auto min-w-[240px] grow shrink-0 basis-0" label="Region" helpText="">
-                <TextField.Input value={customer.region} onChange={() => {}} />
+              <TextField className="h-auto min-w-[240px] grow shrink-0 basis-0" label="Address" helpText="">
+                <TextField.Input value={customer.address ?? customer.region} onChange={() => {}} />
               </TextField>
             </div>
+            <TextField className="h-auto w-full flex-none" label="Budget & affordability" helpText="">
+              <TextField.Input value={customer.budget_note ?? "—"} onChange={() => {}} />
+            </TextField>
             <div className="flex w-full flex-wrap items-start gap-4">
-              <TextField className="h-auto min-w-[240px] grow shrink-0 basis-0" label="Property type" helpText="">
-                <TextField.Input value={customer.property_type ?? "—"} onChange={() => {}} />
+              <TextField className="h-auto min-w-[240px] grow shrink-0 basis-0" label="Email" helpText="">
+                <TextField.Input value={customer.email ?? "—"} onChange={() => {}} />
               </TextField>
-              <TextField className="h-auto min-w-[240px] grow shrink-0 basis-0" label="Preferred channel" helpText="">
-                <TextField.Input value={channel} onChange={() => {}} />
+              <TextField className="h-auto min-w-[240px] grow shrink-0 basis-0" label="Phone" helpText="">
+                <TextField.Input value={customer.phone ?? "—"} onChange={() => {}} />
               </TextField>
-            </div>
-            <div className="flex w-full flex-wrap items-start gap-4">
-              <TextField className="h-auto min-w-[240px] grow shrink-0 basis-0" label="Age" helpText="">
-                <TextField.Input value={ageBand(age)} onChange={() => {}} />
-              </TextField>
-              <TextField className="h-auto min-w-[240px] grow shrink-0 basis-0" label="Communication style" helpText="">
-                <TextField.Input value={commsStyle(age)} onChange={() => {}} />
-              </TextField>
-            </div>
-            <div className="flex w-full items-center gap-1">
-              <FeatherZap className="text-caption font-caption text-brand-600" />
-              <span className="text-caption font-caption text-subtext-color">
-                Age shapes the channel — older buyers prefer letters and calls, younger ones video and WhatsApp.
-              </span>
             </div>
             <div className="flex w-full flex-wrap items-start gap-4">
               <TextField className="h-auto min-w-[240px] grow shrink-0 basis-0" label="System" helpText="">
@@ -224,6 +264,11 @@ export default function LeadMasterDataPage() {
               </TextField>
               <TextField className="h-auto min-w-[240px] grow shrink-0 basis-0" label="Quote value" helpText="">
                 <TextField.Input value={fmtPrice(quote.total_price, quote.currency)} onChange={() => {}} />
+              </TextField>
+            </div>
+            <div className="flex w-full flex-wrap items-start gap-4">
+              <TextField className="h-auto min-w-[240px] grow shrink-0 basis-0" label="Decision context" helpText="">
+                <TextField.Input value={decisionContext} onChange={() => {}} />
               </TextField>
             </div>
           </div>
