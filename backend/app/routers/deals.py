@@ -47,3 +47,21 @@ def get_deal_detail(deal_id: int, session: Session = Depends(get_session)) -> De
         persona=persona.model_dump(mode="json") if persona else None,
         strategy=strategy.model_dump(mode="json") if strategy else None,
     )
+
+
+class PersonalTouchesIn(BaseModel):
+    touches: list[dict[str, Any]]
+
+
+@router.put("/deals/{deal_id}/personal-touches", response_model=Deal)
+def set_personal_touches(
+    deal_id: int, body: PersonalTouchesIn, session: Session = Depends(get_session)
+) -> Deal:
+    deal = queries.get_deal(session, deal_id)
+    if deal is None:
+        raise HTTPException(status_code=404, detail="deal not found")
+    deal.personal_touches = body.touches
+    session.add(deal)
+    session.commit()
+    session.refresh(deal)
+    return deal

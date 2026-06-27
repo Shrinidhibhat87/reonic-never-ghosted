@@ -73,6 +73,11 @@ class Customer(SQLModel, table=True):
     home_ownership: str | None = None
     property_type: str | None = None
     distance_to_installer_km: float | None = None
+    email: str | None = None
+    phone: str | None = None
+    address: str | None = None
+    contact_preference: str | None = None
+    budget_note: str | None = None
 
 
 class Quote(SQLModel, table=True):
@@ -100,6 +105,11 @@ class Deal(SQLModel, table=True):
     current_goal: Goal = Field(default=Goal.build_trust, sa_column=_enum(Goal))
     outcome: str | None = None
     outcome_reason: str | None = None
+    # Board-only post-sign fields; the strategy engine ignores them.
+    install_progress: int | None = None  # 0..100
+    sub_status: str | None = None
+    partner_name: str | None = None
+    personal_touches: list = Field(default_factory=list, sa_column=_jsonb())  # [{id, emoji, label}]
 
 
 class CompetitorPressure(SQLModel, table=True):
