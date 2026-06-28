@@ -30,7 +30,7 @@ import { useRouter, useParams } from "next/navigation";
 import { Sidebar } from "@/components/Sidebar";
 import { InfoTip } from "@/components/InfoTip";
 import { FeatherArrowLeft } from "@subframe/core";
-import { addNote, getDeal, setPersonalTouches } from "@/lib/api";
+import { addNote, getDeal, setPersonalTouches, transcribeVoice, voiceStatus } from "@/lib/api";
 import { navTo } from "@/lib/nav";
 import type { DealDetail, Note, PersonalTouch } from "@/lib/types";
 
@@ -116,7 +116,9 @@ export default function LeadMasterDataPage() {
   const [draft, setDraft] = React.useState("");
   const [adding, setAdding] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
-  const [voiceHint, setVoiceHint] = React.useState(false);
+  const [voiceMsg, setVoiceMsg] = React.useState("");
+  const [recording, setRecording] = React.useState(false);
+  const recRef = React.useRef<MediaRecorder | null>(null);
 
   React.useEffect(() => {
     getDeal(dealId)
@@ -139,6 +141,52 @@ export default function LeadMasterDataPage() {
       setError(String(e));
     } finally {
       setSaving(false);
+    }
+  }
+
+  function flash(msg: string) {
+    setVoiceMsg(msg);
+    window.setTimeout(() => setVoiceMsg(""), 3000);
+  }
+
+  // Record → ElevenLabs STT → drop the transcript into the note draft. Gated on the
+  // backend key: when it's absent the status check short-circuits to "coming soon".
+  async function onRecordVoice() {
+    if (recording) {
+      recRef.current?.stop();
+      return;
+    }
+    let enabled = false;
+    try {
+      enabled = (await voiceStatus()).enabled;
+    } catch {
+      /* backend unreachable — treat as disabled */
+    }
+    if (!enabled) {
+      flash("Voice transcription coming soon — add the ElevenLabs key to enable.");
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const rec = new MediaRecorder(stream);
+      const chunks: Blob[] = [];
+      rec.ondataavailable = (e) => e.data.size && chunks.push(e.data);
+      rec.onstop = async () => {
+        stream.getTracks().forEach((t) => t.stop());
+        setRecording(false);
+        try {
+          const text = await transcribeVoice(new Blob(chunks, { type: "audio/webm" }));
+          setDraft((d) => (d ? `${d} ${text}` : text));
+          setAdding(true);
+        } catch (e) {
+          flash(String(e).includes("coming soon") ? "Voice transcription coming soon." : `Transcription failed: ${e}`);
+        }
+      };
+      recRef.current = rec;
+      rec.start();
+      setRecording(true);
+    } catch {
+      flash("Microphone unavailable — type the note for now.");
     }
   }
 
@@ -336,14 +384,14 @@ export default function LeadMasterDataPage() {
                 Add note
               </Button>
               <Button
-                variant="neutral-tertiary"
+                variant={recording ? "destructive-secondary" : "neutral-tertiary"}
                 icon={<FeatherMic />}
-                onClick={() => { setVoiceHint(true); window.setTimeout(() => setVoiceHint(false), 2500); }}
+                onClick={onRecordVoice}
               >
-                Record voice
+                {recording ? "Stop recording" : "Record voice"}
               </Button>
-              {voiceHint && (
-                <span className="text-caption font-caption text-subtext-color">Voice capture coming soon — type the note for now.</span>
+              {voiceMsg && (
+                <span className="text-caption font-caption text-subtext-color">{voiceMsg}</span>
               )}
             </div>
           </div>

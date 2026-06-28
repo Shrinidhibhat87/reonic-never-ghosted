@@ -78,12 +78,47 @@ def _strength(confidence: float) -> str:
     return "strong" if confidence >= 0.66 else "moderate" if confidence >= 0.33 else "weak"
 
 
+# Per-signal-type buying-intent weight. The agent only sees signal *types* and gives
+# them all one flat confidence, which made every persona-mix bar read the same (~68%).
+# We re-derive a differentiated weight from the type + observed count instead.
+_SIGNAL_WEIGHT = {
+    "email_replied": 0.9,
+    "meeting_booked": 0.88,
+    "site_visit": 0.85,
+    "call_inbound": 0.82,
+    "link_clicked": 0.6,
+    "document_viewed": 0.55,
+    "call_outbound": 0.45,
+    "email_opened": 0.4,
+    "no_response": 0.2,
+}
+
+
+def _behavioral_confidence(signals: Any) -> dict[str, float]:
+    counts: dict[str, int] = {}
+    for s in signals:
+        t = s.type.value
+        counts[t] = counts.get(t, 0) + (s.value or 1)
+    out: dict[str, float] = {}
+    for t, n in counts.items():
+        base = _SIGNAL_WEIGHT.get(t, 0.5)
+        out[t] = round(min(0.96, base + min(0.12, 0.04 * (n - 1))), 2)  # count nudges within the band, saturates
+    return out
+
+
 def _to_request(ctx: EngineContext, *, trigger_type: str, instruction: str | None = None) -> dict[str, Any]:
     """EngineContext -> RecommendRequest JSON (must pass the agent's Zod schema)."""
     c, q, d = ctx.customer, ctx.quote, ctx.deal
     trigger: dict[str, Any] = {"type": trigger_type}
-    if instruction:
-        trigger["installerInstruction"] = instruction
+    # Fold chosen personal touches into the instruction so the agent biases the plan
+    # toward them. Free-text installer notes go in as debriefs below.
+    touch_labels = [t.get("label") for t in (d.personal_touches or []) if isinstance(t, dict) and t.get("label")]
+    parts = [instruction] if instruction else []
+    if touch_labels:
+        parts.append("Personal touches to weave in: " + ", ".join(touch_labels) + ".")
+    combined = " ".join(p for p in parts if p).strip()
+    if combined:
+        trigger["installerInstruction"] = combined
 
     return {
         "requestId": str(uuid.uuid4()),
@@ -129,7 +164,17 @@ def _to_request(ctx: EngineContext, *, trigger_type: str, instruction: str | Non
                 if t.timestamp  # occurredAt is required (min length 1); skip undated touches
             ],
             "actions": [],
-            "debriefs": [],
+            # Installer notes reach the agent as debriefs — its keyword/debrief rules read
+            # notes + customerLanguage, so what the installer writes now shapes the plan.
+            "debriefs": [
+                {
+                    "occurredAt": _iso(n.timestamp) or datetime.now().isoformat(),
+                    "notes": n.content,
+                    "customerLanguage": [n.content],
+                }
+                for n in ctx.notes
+                if n.content
+            ],
             "files": [],
         },
         "assistantState": {
@@ -182,15 +227,20 @@ def _to_result(ctx: EngineContext, resp: dict[str, Any], *, include_creative_pla
             )
         )
 
-    persona_scores = [
-        PersonaScore(
-            persona=sig.get("name", "signal"),
-            weight=float(sig.get("confidence", 0.5)),
-            strength=_strength(float(sig.get("confidence", 0.5))),
-            evidence_refs=[sig.get("whyItMatters", "")],
+    # Differentiate behavioural-signal weights from real counts; keep the agent's own
+    # confidence for KB-matched signals.
+    sig_conf = _behavioral_confidence(ctx.signals)
+    persona_scores = []
+    for sig in bp.get("signals", []):
+        weight = sig_conf.get(sig.get("id"), float(sig.get("confidence", 0.5)))
+        persona_scores.append(
+            PersonaScore(
+                persona=sig.get("name", "signal"),
+                weight=weight,
+                strength=_strength(weight),
+                evidence_refs=[sig.get("whyItMatters", "")],
+            )
         )
-        for sig in bp.get("signals", [])
-    ]
 
     plays: list[CreativePlay] = []
     if include_creative_plays:

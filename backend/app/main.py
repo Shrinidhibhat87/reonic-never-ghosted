@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 import app.models  # noqa: F401 — register tables before create_all
 from app.db import create_all
-from app.routers import admin, appointments, deals, leads, notes, orgs, strategy
+from app.routers import admin, appointments, deals, leads, notes, orgs, strategy, voice
 
 # No-op until a Logfire token is present (`uv run logfire auth`), so tests/CI are
 # unaffected; traces API requests + agent runs once authenticated.
@@ -48,6 +48,7 @@ app.include_router(orgs.router)
 app.include_router(strategy.router)
 app.include_router(notes.router)
 app.include_router(appointments.router)
+app.include_router(voice.router)
 
 
 @app.get("/health")
