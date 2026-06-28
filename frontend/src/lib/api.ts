@@ -66,6 +66,18 @@ export const addNote = (dealId: number, content: string, type: "text" | "voice" 
     body: JSON.stringify({ content, type }),
   });
 
+export const voiceStatus = () => req<{ enabled: boolean }>(`/voice/status`);
+
+// Multipart upload — can't use req() (it forces JSON). Returns transcribed text;
+// throws "Feature coming soon" when ELEVENLABS_API_KEY isn't set on the backend.
+export async function transcribeVoice(blob: Blob): Promise<string> {
+  const form = new FormData();
+  form.append("file", blob, "note.webm");
+  const res = await fetch(`${BASE}/voice/transcribe`, { method: "POST", body: form });
+  if (!res.ok) throw new Error((await res.text().catch(() => "")) || `voice ${res.status}`);
+  return (await res.json()).text as string;
+}
+
 export const setPersonalTouches = (dealId: number, touches: PersonalTouch[]) =>
   req<Deal>(`/deals/${dealId}/personal-touches`, {
     method: "PUT",
